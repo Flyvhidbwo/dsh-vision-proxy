@@ -50,9 +50,11 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 ## 安装
 
 ```sh
-dsh plugin add <本仓库 git 地址>
+dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 # 或经插件管理器（Marisa / dshx）：dshx install dsh-vision-proxy <url>
 ```
+
+无构建步骤：插件以编译好的 `lib/` 直接入库，git 安装即可用（无需 `prepare` 脚本，也无需 pnpm `allowBuilds` 授权）。包声明了 `dsh.bundle`，安装后会自动加入 profile 的组合包层。
 
 安装后重启 `dsh web`，在模型选择器里选 **DeepSeek + 自动识图 → DeepSeek-V4-Flash**（或内部 DeepSeek 路由暴露的任意模型）。
 

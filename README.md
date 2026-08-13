@@ -50,9 +50,11 @@ Both autonomous paths are covered:
 ## Install
 
 ```sh
-dsh plugin add <this-repo-git-url>
+dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 # or via plugin registry (Marisa / dshx): dshx install dsh-vision-proxy <url>
 ```
+
+No build step is involved: the plugin ships compiled `lib/` in the repo, so git installs work as-is (no `prepare` script, no pnpm `allowBuilds` authorization needed). The package declares `dsh.bundle`, so the install adds it to the profile's bundle layers automatically.
 
 Then restart `dsh web`, open the model picker and select **DeepSeek + 自动识图 → DeepSeek-V4-Flash** (or any model the inner DeepSeek route exposes).
 
