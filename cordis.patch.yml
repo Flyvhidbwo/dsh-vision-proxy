@@ -1,0 +1,17 @@
+# dsh-vision-proxy bundle patch: one insert over the profile tree.
+# The plugin row activates only when this package is installed as a profile
+# dependency (e.g. `dsh plugin add <git-or-registry-url>`). The API key is NOT
+# stored here on purpose: leave `apiKey` empty and export VISION_API_KEY (or
+# DASHSCOPE_API_KEY) in your launching environment, or fill it in your
+# profile's cordis.patch.yml override.
+
+- insert:
+    - id: dsh-vision-proxy
+      name: 'dsh-vision-proxy'
+      config:
+        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+        apiKey: ''
+        model: qwen3.7-flash
+        maxTokens: 2048
+        timeoutMs: 60000
+        marker: '[图片转译]'

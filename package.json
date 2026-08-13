@@ -1,0 +1,38 @@
+{
+  "name": "dsh-vision-proxy",
+  "version": "0.1.0",
+  "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness: a `deepseek-vision` provider route that transcribes attached images to text via any OpenAI-compatible VLM before delegating to the text-only DeepSeek adapter. GUI image attachments work with DeepSeek as the conversation brain.",
+  "private": false,
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.1.0-rc.6"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "schemastery": "^3.18.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "vision",
+    "image",
+    "ocr",
+    "vlm",
+    "qwen",
+    "dashscope"
+  ]
+}
