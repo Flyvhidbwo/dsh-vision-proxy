@@ -1,6 +1,8 @@
 # dsh-vision-proxy
 
-**DeepSeek 大脑 + 自动识图** · DeepSeek brain + automatic image transcription for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+**DeepSeek brain + automatic image transcription** for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 
 A provider-route proxy plugin: keep using DeepSeek (a text-only line) as the conversation brain, and attach images in the Web GUI anyway — every image is automatically transcribed to text through an OpenAI-compatible VLM (DashScope `qwen3.7-flash` by default) before the conversation reaches DeepSeek.
 
@@ -38,7 +40,7 @@ Config lives in the plugin row (bundle default below; override in your profile's
       name: 'dsh-vision-proxy'
       config:
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-        apiKey: ''            # 留空则读环境变量
+        apiKey: ''            # leave empty to read environment variables
         model: qwen3.7-flash
         maxTokens: 2048
         timeoutMs: 60000
@@ -58,8 +60,8 @@ Config lives in the plugin row (bundle default below; override in your profile's
 
 ### Endpoint notes
 
-- **DashScope (阿里云百炼)**: keep the default `baseURL`; key from [bailian.console.aliyun.com](https://bailian.console.aliyun.com). `qwen3.7-flash` is multimodal and cheap.
-- **Zhipu (智谱)**: `https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash` (free tier available).
+- **DashScope (Alibaba Cloud Model Studio)**: keep the default `baseURL`; key from [bailian.console.aliyun.com](https://bailian.console.aliyun.com). `qwen3.7-flash` is multimodal and cheap.
+- **Zhipu**: `https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash` (free tier available).
 - **Local Ollama**: `http://localhost:11434/v1` + any vision model, no key needed.
 
 ## Behavior notes
