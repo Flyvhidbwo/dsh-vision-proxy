@@ -19,6 +19,34 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
             DeepSeek 作答 ◀── 纯文本对话（图片已替换为 [图片转译] 文字）
 ```
 
+## 现场演示：工作中途的自主识图
+
+下面就是本插件开启的完整链路。在一次"部署检查"任务中，工具返回了一张截图路径；模型**自主决定要看图**，调用了 `view_image`——代理把图片经 VLM 转译成文字，模型基于文字继续分析并作答。
+
+![工作中途识图演示](assets/demo.png)
+
+**调用链**
+
+```
+任务：分析这份部署报告
+  → 工具返回 deploy-report.png（一个文件路径）
+  → 模型自主调用 view_image("deploy-report.png", "逐行准确读出所有文字")
+  → qwen3.7-flash 转译（OCR + 版式）：
+      "Deploy Report - 2026-08-13 22:47:12
+       [ERROR] web-server: Connection refused: localhost:8080
+       [ERROR] database: timeout after 5000ms
+       [INFO ] retry 1/3 ...
+       [ERROR] TLS handshake failed: cert expired (demo.local)
+       [INFO ] rollback to release-2026.08.12
+       exit code: 1"
+  → 模型基于文字分析故障原因并回答
+```
+
+两条自主路径都覆盖：
+
+- **`view_image` 工具（任意路由）**：只要图片有意义——工具返回的截图路径、图片 URL、图表、UI 草图——模型会自己调用它，而不是猜测或拒绝。
+- **图片块自动转译（`deepseek-vision` 路由）**：对话中途附加的图片会自动转译进下一条请求，DeepSeek 永远只看到纯文本对话。
+
 ## 安装
 
 ```sh

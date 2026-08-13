@@ -19,6 +19,34 @@ user attaches image ──▶ deepseek-vision route ──▶ transcribe via qwe
                    DeepSeek answers ◀── text-only conversation (images replaced by [图片转译] text)
 ```
 
+## Live demo: mid-task autonomous vision
+
+This is the exact flow this plugin enables. During a deployment-check task, the agent's tooling returned a screenshot path; the model **autonomously decided to look at it** and called `view_image` — the proxy transcribed the image through the VLM, and the model continued its analysis on the resulting text.
+
+![Mid-task vision demo](assets/demo.png)
+
+**Call chain**
+
+```
+task: analyze the deploy report
+  → tooling returns deploy-report.png (a file path)
+  → model autonomously calls view_image("deploy-report.png", "read every line verbatim")
+  → qwen3.7-flash transcribes (OCR + layout):
+      "Deploy Report - 2026-08-13 22:47:12
+       [ERROR] web-server: Connection refused: localhost:8080
+       [ERROR] database: timeout after 5000ms
+       [INFO ] retry 1/3 ...
+       [ERROR] TLS handshake failed: cert expired (demo.local)
+       [INFO ] rollback to release-2026.08.12
+       exit code: 1"
+  → model analyzes the failure from the text and answers
+```
+
+Both autonomous paths are covered:
+
+- **`view_image` tool (any route)**: whenever an image matters — a screenshot path a tool returned, an image URL, a chart, a UI mockup — the model calls it by itself instead of guessing.
+- **Image-block auto-transcription (on the `deepseek-vision` route)**: images you attach mid-conversation are transcribed into the next request automatically, so DeepSeek always sees a text-only conversation.
+
 ## Install
 
 ```sh
