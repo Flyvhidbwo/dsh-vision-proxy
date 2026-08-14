@@ -91,6 +91,19 @@ test('fallback chain: all fail → combined classified error', async () => {
     );
 });
 
+test('fallback chain: keyless main is skipped, anonymous fallback used', async () => {
+    const calls = makeFetchMock(async (url) => {
+        if (!url.includes('free')) throw new Error(`unexpected url ${url}`);
+        return res(200, okBody('from free endpoint'));
+    });
+    const resolved = { baseURL: 'https://paid', model: 'main', apiKey: '', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0 };
+    const fallbacks = [{ baseURL: 'https://free', model: 'Qwen2.5-VL-72B-Instruct', apiKey: '', anonymous: true, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
+    const { text } = await transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map());
+    assert.equal(text, 'from free endpoint');
+    assert.equal(calls.length, 1); // the keyless main never reached the network
+    assert.ok(calls[0].url.includes('free'));
+});
+
 test('content-hash cache: same bytes, different attachment ids → one request', async () => {
     const calls = makeFetchMock(async () => res(200, okBody('cached text')));
     const config = { baseURL: 'https://c', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, marker: '[X]' };

@@ -63,7 +63,11 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 
 Or via a plugin registry (Marisa / dshx): `dshx install dsh-vision-proxy <url>`
 
-No build step is involved: the plugin ships compiled `lib/` in the repo, so git installs work as-is (no `prepare` script, no pnpm `allowBuilds` authorization needed). The package declares `dsh.bundle`, so the install adds it to the profile's bundle layers automatically.
+The package ships compiled `lib/` (no build step). At install, a **one-question consent prompt** asks whether you have a VLM API key: answer `y` to be guided to the fast paid path (export `VISION_API_KEY` / `DASHSCOPE_API_KEY`), or `N` (default) to use the free anonymous model with zero config. In non-interactive environments (CI, scripts) the prompt is skipped and the free default applies — the install never hangs or fails.
+
+> pnpm ≥ 10 blocks dependency build scripts by default; if your install says "Ignored build scripts", run `pnpm approve-builds` once (select `dsh-vision-proxy`), or add `allowBuilds: dsh-vision-proxy: true` to the profile's `pnpm-workspace.yaml`, then re-run the install. Without approval the prompt is simply skipped and the free default applies.
+
+> **Please read before installing — privacy consent**: this plugin sends image bytes to a third-party VLM endpoint for transcription. By default, with no API key set, images go to the registration-free anonymous OVHcloud AI Endpoints (`Qwen2.5-VL-72B-Instruct`); with `VISION_API_KEY` / `DASHSCOPE_API_KEY` set, they go to Alibaba Cloud Model Studio (DashScope, `qwen3.7-flash`). See [Privacy](#privacy). If you cannot accept images leaving your machine, point `baseURL` at a local Ollama instead — or don't install.
 
 Then restart `dsh web`, open the model picker and select **DeepSeek + 自动识图 → DeepSeek-V4-Flash** (or any model the inner DeepSeek route exposes).
 
@@ -102,12 +106,13 @@ Config lives in the plugin row (bundle default below; override in your profile's
 | `innerProvider` | `deepseek-official` | Existing adapter route to wrap |
 | `baseURL` | DashScope compatible-mode | OpenAI-compatible VLM endpoint (any vendor, Ollama included) |
 | `apiKey` | `''` | VLM key; falls back to `$VISION_API_KEY`, then `$DASHSCOPE_API_KEY` |
+| `anonymous` | `false` | Skip the Authorization header (for registration-free endpoints like the OVHcloud one) |
 | `model` | `qwen3.7-flash` | Vision model id (e.g. `qwen3-vl-flash`, `glm-4.6v-flash`, `qwen3-vl:4b` for local Ollama) |
 | `maxTokens` | `4096` | VLM output cap |
 | `timeoutMs` | `120000` | VLM request timeout |
 | `maxImagePixels` | `4000000` | Images above this pixel count are downscaled before transcription when `sharp` is installed (0 disables; without sharp the original is sent) |
 | `marker` | `[图片转译]` | Marker prepended to each transcription |
-| `fallbackModels` | `[OVH anonymous]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry inherits the main config unless overridden; `anonymous: true` endpoints need no key |
+| `fallbackModels` | `[OVH anonymous]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry inherits the main config unless overridden; `anonymous: true` endpoints need no key. A non-anonymous entry without a resolvable key is **skipped** (not failed), so a zero-key install flows straight to the free anonymous fallback |
 
 ### Overriding in your profile
 
@@ -139,7 +144,7 @@ Config lives in the plugin row (bundle default below; override in your profile's
 ## Behavior notes
 
 - Only messages containing image blocks are touched; plain-text conversations hit DeepSeek with zero overhead.
-- **Fallback chain**: when the main model fails (rate limit, quota, auth, network…), `fallbackModels` entries are tried in order; the request only fails after all of them failed, with one error listing every attempt.
+- **Fallback chain**: when the main model fails (rate limit, quota, auth, network…), `fallbackModels` entries are tried in order; a non-anonymous entry with no resolvable API key is skipped, and the request only fails after all entries failed, with one error listing every attempt.
 - **Content-hash cache**: transcriptions are cached by the SHA-256 of the image bytes (in-process, capped at 200), so the same image — even re-attached under a new attachment id or in another conversation — is transcribed at most once per process.
 - **Classified errors**: failed VLM responses are classified (`rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http`) and the error carries an actionable hint; HTTP 429 honors `Retry-After` once (capped at 15 s) before giving up.
 - **Auto-downscale** (optional): when `sharp` is installed, images above `maxImagePixels` are downscaled before transcription — fewer image tokens, much faster on big screenshots. Without sharp the original is sent as-is. `sharp` is an optional dependency: installs best-effort, and the plugin degrades gracefully.
@@ -155,6 +160,16 @@ The plugin uses only public harness seams, stable on rc.6:
 - `ctx.llm.registerAdapter([providerId], proxyAdapter)` — register a NEW route (no `DUPLICATE_ADAPTER` conflict);
 - proxy `resolveModel` overrides `inputModalities` to `['text', 'image']` — satisfies the attachment preflight (`api-proxy`) and the `read_image` gate (`dsh-tool-fs`);
 - proxy `stream` transcribes image blocks (shape `{ type: 'image', attachment }`, bytes via `ctx.get('attachments').readImage(ref)`) and `yield*`s the inner adapter's stream unchanged.
+
+## Privacy
+
+Transcription sends image bytes (base64, over HTTPS) to the configured VLM endpoint — **the image data leaves your machine**:
+
+- **Default, no key**: the registration-free anonymous OVHcloud AI Endpoints (`https://oai.endpoints.kepler.ai.cloud.ovh.net/v1`, `Qwen2.5-VL-72B-Instruct`, ~2 req/min/IP, best-effort availability).
+- **With `VISION_API_KEY` / `DASHSCOPE_API_KEY`**: Alibaba Cloud Model Studio (DashScope) — `qwen3.7-flash`.
+- **Local only**: point `baseURL` at e.g. `http://localhost:11434/v1` (Ollama) and images never leave your machine.
+
+Nothing is stored beyond the harness's own attachment store; transcription results are cached in-process only (never persisted). The startup log prints a PRIVACY NOTICE naming the active endpoint. For sensitive images, use your own endpoint or a local model.
 
 ## License
 

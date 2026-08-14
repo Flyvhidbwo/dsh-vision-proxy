@@ -1,23 +1,24 @@
 # dsh-vision-proxy bundle patch: one insert over the profile tree.
 # The plugin row activates only when this package is installed as a profile
-# dependency (e.g. `dsh plugin add <git-or-registry-url>`). The API key is NOT
-# stored here on purpose: leave `apiKey` empty and export VISION_API_KEY (or
-# DASHSCOPE_API_KEY) in your launching environment, or fill it in your
-# profile's cordis.patch.yml override.
+# dependency (e.g. `dsh plugin add <git-or-registry-url>`).
+#
+# 默认配置 = 有 key 走百炼（快、不限速）；没有 key 时主模型会被自动跳过，
+# 直接使用下方 OVHcloud 匿名免费端点（免注册、免 key，限速约 2 次/分/IP）。
+# 也就是说：零配置开箱即用（免费），导出 VISION_API_KEY / DASHSCOPE_API_KEY 自动提速。
 
 - insert:
     - id: dsh-vision-proxy
       name: 'dsh-vision-proxy'
       config:
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-        apiKey: ''            # 留空则读环境变量；没有 key 也能用（走下方匿名兜底）
+        apiKey: ''            # 留空则读环境变量；无 key 时本主模型自动跳过
         model: qwen3.7-flash
         maxTokens: 4096       # 思考型模型会先消耗推理 token，预算给足
         timeoutMs: 120000     # 大图 + 思考型模型耗时可能超过 60s
         maxImagePixels: 4000000   # 超过 400 万像素的图自动降采样（装有 sharp 时）
         marker: '[图片转译]'
-        # 降级链：主模型失败时依次尝试；默认最后兜底是 OVHcloud 匿名端点
-        # （免注册免 key，限速 2 次/分/IP）。可加智谱免费档等其它模型。
+        # 降级链：主模型失败（或无 key 被跳过）时依次尝试。
+        # 默认兜底是 OVHcloud 匿名免费端点，零配置可用。
         fallbackModels:
           - model: Qwen2.5-VL-72B-Instruct
             baseURL: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1

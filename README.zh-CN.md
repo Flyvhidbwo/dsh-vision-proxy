@@ -63,7 +63,11 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 
 或经插件管理器（Marisa / dshx）：`dshx install dsh-vision-proxy <url>`
 
-无构建步骤：插件以编译好的 `lib/` 直接入库，git 安装即可用（无需 `prepare` 脚本，也无需 pnpm `allowBuilds` 授权）。包声明了 `dsh.bundle`，安装后会自动加入 profile 的组合包层。
+插件以编译好的 `lib/` 直接入库（无构建步骤）。安装时会弹出一个**一问式确认**：你有没有 VLM API key？——回答 `y` 会引导走付费快速通道（导出 `VISION_API_KEY` / `DASHSCOPE_API_KEY`）；回答 `N`（默认）则零配置使用免费模型。非交互环境（CI、脚本）下自动跳过询问并采用免费默认——安装永远不会卡住或失败。
+
+> pnpm ≥ 10 默认拦截依赖的构建脚本：如果安装时提示 "Ignored build scripts"，先执行一次 `pnpm approve-builds`（勾选 `dsh-vision-proxy`），或在 profile 的 `pnpm-workspace.yaml` 里加 `allowBuilds: dsh-vision-proxy: true`，然后重新安装。不授权也不影响：只是跳过询问、走免费默认。
+
+> **安装前请先阅读——隐私知情**：本插件会把图片字节发送到第三方 VLM 端点进行转译。默认（未设置任何 key）图片会发送到免注册匿名的 OVHcloud AI Endpoints（`Qwen2.5-VL-72B-Instruct`）；设置了 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 时发送到阿里云百炼（`qwen3.7-flash`）。详见[隐私](#隐私)。如果不能接受图片离开本机，请把 `baseURL` 指向本地 Ollama，或不要安装本插件。
 
 安装后重启 `dsh web`，在模型选择器里选 **DeepSeek + 自动识图 → DeepSeek-V4-Flash**（或内部 DeepSeek 路由暴露的任意模型）。
 
@@ -101,12 +105,13 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 | `innerProvider` | `deepseek-official` | 被包装的现有适配器路由 |
 | `baseURL` | DashScope 兼容模式 | OpenAI 兼容 VLM 端点（任意厂商，含 Ollama） |
 | `apiKey` | `''` | VLM 密钥；回退读取 `$VISION_API_KEY`，再回退 `$DASHSCOPE_API_KEY` |
+| `anonymous` | `false` | 跳过 Authorization 头（用于 OVHcloud 这类免注册端点） |
 | `model` | `qwen3.7-flash` | 视觉模型 id（如 `qwen3-vl-flash`、`glm-4.6v-flash`，本地 Ollama 可用 `qwen3-vl:4b`） |
 | `maxTokens` | `4096` | VLM 输出上限 |
 | `timeoutMs` | `120000` | VLM 请求超时 |
 | `maxImagePixels` | `4000000` | 超过该像素数的图片在转译前自动降采样（装有 `sharp` 时生效；0 关闭；无 sharp 则原图直发） |
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
-| `fallbackModels` | `[OVH 匿名]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` 数组，按顺序尝试；未写的字段继承主配置；`anonymous: true` 的端点无需 key |
+| `fallbackModels` | `[OVH 匿名]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` 数组，按顺序尝试；未写的字段继承主配置；`anonymous: true` 的端点无需 key。**没有可解析 key 的非匿名条目会被跳过**（而不是失败），所以零 key 安装会直接落到免费匿名兜底 |
 
 ### 在 profile 中覆盖
 
