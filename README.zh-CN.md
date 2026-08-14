@@ -51,6 +51,7 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 
 ```sh
 dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
+# 发布到 npm 后：dsh plugin --profile web add dsh-vision-proxy
 # 或经插件管理器（Marisa / dshx）：dshx install dsh-vision-proxy <url>
 ```
 
@@ -58,7 +59,9 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 
 安装后重启 `dsh web`，在模型选择器里选 **DeepSeek + 自动识图 → DeepSeek-V4-Flash**（或内部 DeepSeek 路由暴露的任意模型）。
 
-要求：dsh >= 0.1.0-rc.6，Node >= 22.19。
+要求：`dsh` >= 0.1.0-rc.6，Node >= 22.19，且 PATH 上有 `pnpm`（`dsh plugin` 命令会转发给 pnpm）。
+
+> **从本地目录安装**（如 `dsh plugin --profile web add /path/to/dsh-vision-proxy`）生成的是 `link:` 依赖，pnpm 不会为 link 包安装其自身依赖——装完后需在插件目录里执行一次 `pnpm install`（唯一运行时依赖是 `schemastery`）。
 
 ## 配置
 
@@ -88,9 +91,28 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 | `timeoutMs` | `60000` | VLM 请求超时 |
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
 
+### 在 profile 中覆盖
+
+```yaml
+# 例如 $DSH_HOME/profiles/web/cordis.patch.yml
+# 注意：按 id 定位的 patch 会【整体替换】config 对象——不是深合并——
+# 想保留的键必须全部写上。
+- id: dsh-vision-proxy
+  config:
+    baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+    apiKey: 'sk-…'            # 或留空，改用环境变量 VISION_API_KEY
+    model: qwen3.7-flash
+    maxTokens: 2048
+    timeoutMs: 60000
+    marker: '[图片转译]'
+```
+
+> **建议优先用 `VISION_API_KEY` 环境变量，而不是把密钥写进 patch 文件**：`dsh --profile <name> --dump-config` 会原样打印合成后的配置，写在 `cordis.patch.yml` 里的密钥会明文出现在 dump 输出中。
+
 ### 端点说明
 
-- **DashScope（阿里云百炼）**：保持默认 `baseURL`；密钥在 [bailian.console.aliyun.com](https://bailian.console.aliyun.com) 申请。`qwen3.7-flash` 多模态且便宜。
+- **千问 / DashScope（国内）**：保持默认 `baseURL`（`https://dashscope.aliyuncs.com/compatible-mode/v1`）。密钥来自 [platform.qianwenai.com](https://platform.qianwenai.com)（通用 API Key 为 `sk-ws-…` 格式，Token Plan 为 `sk-sp-…` 格式），或 [bailian.console.aliyun.com](https://bailian.console.aliyun.com)（`sk-…` 格式）。`qwen3.7-flash` 多模态且便宜。
+- **QwenCloud（国际版）**：`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`。
 - **智谱**：`https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash`（有免费档）。
 - **本地 Ollama**：`http://localhost:11434/v1` + 任意视觉模型，无需密钥。
 
@@ -99,7 +121,8 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 - 只有含图片块的消息才会被处理；纯文本对话零开销直达 DeepSeek。
 - 转译结果按 `attachmentId` 缓存（进程内，上限 100 条），同一张图每个进程最多转译一次。
 - `read_image` 工具在该路由下同样可用（其能力门禁读取的是同一份模型信息）。
-- 若 VLM 失败（网络 / 额度 / 缺密钥），请求会以明确报错失败，而不是静默丢弃图片。
+- 启动时插件会打印一行摘要日志——路由 id、被包装的 provider、VLM 模型、端点和 apiKey 来源（永远不会打印密钥本身）。发图前可以先看这行确认当前生效的 VLM。
+- 若 VLM 失败（网络 / 额度 / 缺密钥），请求会以明确报错失败，而不是静默丢弃图片；401/403 时错误信息里会附上核对密钥格式的提示。
 
 ## 实现原理（给插件开发者）
 

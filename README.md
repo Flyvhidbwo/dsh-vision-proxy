@@ -51,6 +51,7 @@ Both autonomous paths are covered:
 
 ```sh
 dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
+# once published to npm: dsh plugin --profile web add dsh-vision-proxy
 # or via plugin registry (Marisa / dshx): dshx install dsh-vision-proxy <url>
 ```
 
@@ -58,7 +59,9 @@ No build step is involved: the plugin ships compiled `lib/` in the repo, so git 
 
 Then restart `dsh web`, open the model picker and select **DeepSeek + 自动识图 → DeepSeek-V4-Flash** (or any model the inner DeepSeek route exposes).
 
-Requirements: dsh >= 0.1.0-rc.6, Node >= 22.19.
+Requirements: `dsh` >= 0.1.0-rc.6, Node >= 22.19, and `pnpm` on PATH (the `dsh plugin` command forwards to pnpm).
+
+> **Installing from a local folder** (e.g. `dsh plugin --profile web add /path/to/dsh-vision-proxy`) creates a `link:` dependency, and pnpm does not install a linked package's own dependencies — run `pnpm install` once inside the plugin folder afterwards (the only runtime dependency is `schemastery`).
 
 ## Configuration
 
@@ -88,9 +91,28 @@ Config lives in the plugin row (bundle default below; override in your profile's
 | `timeoutMs` | `60000` | VLM request timeout |
 | `marker` | `[图片转译]` | Marker prepended to each transcription |
 
+### Overriding in your profile
+
+```yaml
+# e.g. $DSH_HOME/profiles/web/cordis.patch.yml
+# NOTE: an id-targeted patch REPLACES the whole `config` object — it is not a
+# deep merge — so repeat every key you want to keep.
+- id: dsh-vision-proxy
+  config:
+    baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+    apiKey: 'sk-…'           # or leave '' and export VISION_API_KEY instead
+    model: qwen3.7-flash
+    maxTokens: 2048
+    timeoutMs: 60000
+    marker: '[图片转译]'
+```
+
+> **Prefer `VISION_API_KEY` over writing the key into a patch file**: `dsh --profile <name> --dump-config` prints the composed config as-is, so a key stored in `cordis.patch.yml` appears in plaintext dumps.
+
 ### Endpoint notes
 
-- **DashScope (Alibaba Cloud Model Studio)**: keep the default `baseURL`; key from [bailian.console.aliyun.com](https://bailian.console.aliyun.com). `qwen3.7-flash` is multimodal and cheap.
+- **Qwen / DashScope (China)**: keep the default `baseURL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`). Keys from [platform.qianwenai.com](https://platform.qianwenai.com) — general API keys are `sk-ws-…`, Token Plan keys are `sk-sp-…` — or from [bailian.console.aliyun.com](https://bailian.console.aliyun.com) (`sk-…`). `qwen3.7-flash` is multimodal and cheap.
+- **QwenCloud (international)**: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`.
 - **Zhipu**: `https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash` (free tier available).
 - **Local Ollama**: `http://localhost:11434/v1` + any vision model, no key needed.
 
@@ -99,7 +121,8 @@ Config lives in the plugin row (bundle default below; override in your profile's
 - Only messages containing image blocks are touched; plain-text conversations hit DeepSeek with zero overhead.
 - Transcription is cached per `attachmentId` (in-process, capped at 100), so each image is transcribed at most once per process.
 - `read_image` also works on this route (its capability gate reads the same model info).
-- If the VLM fails (network / quota / missing key), the request fails with a clear message instead of silently dropping the image.
+- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint and apiKey source (never the key itself). Check it to confirm the active VLM before sending images.
+- If the VLM fails (network / quota / missing key), the request fails with a clear message instead of silently dropping the image; on 401/403 the error adds a hint about checking the key format.
 
 ## How it works (for plugin developers)
 
