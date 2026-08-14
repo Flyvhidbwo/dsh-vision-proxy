@@ -49,11 +49,19 @@ Both autonomous paths are covered:
 
 ## Install
 
+**Recommended: straight from the npm registry** (no GitHub access needed, one command):
+
+```sh
+dsh plugin --profile web add dsh-vision-proxy
+```
+
+**Alternative: from GitHub** (requires GitHub connectivity):
+
 ```sh
 dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
-# once published to npm: dsh plugin --profile web add dsh-vision-proxy
-# or via plugin registry (Marisa / dshx): dshx install dsh-vision-proxy <url>
 ```
+
+Or via a plugin registry (Marisa / dshx): `dshx install dsh-vision-proxy <url>`
 
 No build step is involved: the plugin ships compiled `lib/` in the repo, so git installs work as-is (no `prepare` script, no pnpm `allowBuilds` authorization needed). The package declares `dsh.bundle`, so the install adds it to the profile's bundle layers automatically.
 

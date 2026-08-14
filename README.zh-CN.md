@@ -49,11 +49,19 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 
 ## 安装
 
+**推荐：直接从 npm registry 安装**（`registry.npmjs.org` 国内可直连，无需梯子，一条命令）：
+
+```sh
+dsh plugin --profile web add dsh-vision-proxy
+```
+
+**备选：从 GitHub 安装**（GitHub 直连不稳定时需要代理）：
+
 ```sh
 dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
-# 发布到 npm 后：dsh plugin --profile web add dsh-vision-proxy
-# 或经插件管理器（Marisa / dshx）：dshx install dsh-vision-proxy <url>
 ```
+
+或经插件管理器（Marisa / dshx）：`dshx install dsh-vision-proxy <url>`
 
 无构建步骤：插件以编译好的 `lib/` 直接入库，git 安装即可用（无需 `prepare` 脚本，也无需 pnpm `allowBuilds` 授权）。包声明了 `dsh.bundle`，安装后会自动加入 profile 的组合包层。
 
