@@ -62,25 +62,23 @@ dsh plugin --profile web add dsh-vision-proxy   # 或：github:Flyvhidbwo/dsh-vi
 
 > pnpm ≥ 10 默认拦截依赖构建脚本。如果安装时提示 "Ignored build scripts"，先执行一次 `pnpm approve-builds`（勾选 `dsh-vision-proxy`），或在 profile 的 `pnpm-workspace.yaml` 加 `allowBuilds: dsh-vision-proxy: true`。不授权也只是跳过询问、免费默认照常生效。
 
-## 现场演示：工作中途的自主识图
+## 现场演示：真实对话中的识图
 
-在一次"部署检查"任务中，工具返回了一张截图路径；模型**自主决定要看图**，调用了 `view_image`——代理把图片经 VLM 转译成文字，模型基于文字继续分析并作答。
+一段 `deepseek-vision` 路由上的真实对话（DeepSeek-V4-Flash 作为大脑）：用户粘贴了一张表情包并问 **"你看到了什么"**，图片被 VLM 自动转译，DeepSeek 基于文字完整作答——单步，约 7.6 秒。
 
-![工作中途识图演示](assets/demo.png)
+<p align="center">
+  <img src="assets/demo-selector.png" width="49%" alt="模型选择器：DeepSeek + 自动识图 路由已选中" />
+  <img src="assets/demo-reply.png" width="49%" alt="DeepSeek 基于转译内容的完整回答" />
+</p>
+
+*左图：模型选择器显示 `deepseek-vision` 路由（**DeepSeek + 自动识图**）已选中——这正是图片附件得以放行的原因。右图：DeepSeek 基于转译文字给出的完整回答。*
 
 ```
-任务：分析这份部署报告
-  → 工具返回 deploy-report.png（一个文件路径）
-  → 模型自主调用 view_image("deploy-report.png", "逐行准确读出所有文字")
-  → VLM 转译（OCR + 版式）：
-      "Deploy Report - 2026-08-13 22:47:12
-       [ERROR] web-server: Connection refused: localhost:8080
-       [ERROR] database: timeout after 5000ms
-       [INFO ] retry 1/3 ...
-       [ERROR] TLS handshake failed: cert expired (demo.local)
-       [INFO ] rollback to release-2026.08.12
-       exit code: 1"
-  → 模型基于文字分析故障原因并回答
+用户粘贴表情包 + "你看到了什么"
+  → 图片块经 VLM 自动转译（OCR + 版式）：
+      "我是吃白饭的 / 蓝色大肥鱼！ (理直气壮.jpg) — Q版蓝发女仆装少女，
+       身后蓝鲸尾巴，端碗举筷，表情兴奋"
+  → DeepSeek 基于文字对表情包做完整视觉分析
 ```
 
 两条自主路径都覆盖：`view_image` 工具（任意路由，支持文件路径与 URL）和图片块自动转译（`deepseek-vision` 路由——对话中途附加的图片）。

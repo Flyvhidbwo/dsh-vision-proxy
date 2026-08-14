@@ -1,6 +1,6 @@
 ﻿{
     "name":  "dsh-vision-proxy",
-    "version":  "0.1.9",
+    "version":  "0.1.11",
     "description":  "DeepSeek brain + automatic image transcription for DeepSeek Harness: a deepseek-vision provider route that transcribes attached images to text via any OpenAI-compatible VLM (free anonymous endpoint by default — zero config; DashScope/Qwen/Zhipu/Ollama/OpenRouter all supported; keyless entries auto-skipped) before delegating to the text-only DeepSeek adapter.",
     "private":  false,
     "type":  "module",
@@ -11,7 +11,8 @@
                   "README.md",
                   "README.zh-CN.md",
                   "LICENSE",
-                  "scripts"
+                  "scripts",
+                  "assets"
               ],
     "license":  "MIT",
     "author":  {

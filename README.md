@@ -62,25 +62,23 @@ During install you are asked one question — *do you have a VLM API key?* Answe
 
 > pnpm ≥ 10 blocks dependency build scripts by default. If the install says "Ignored build scripts", run `pnpm approve-builds` once (select `dsh-vision-proxy`) or add `allowBuilds: dsh-vision-proxy: true` to the profile's `pnpm-workspace.yaml`. Without approval the prompt is skipped and the free default applies.
 
-## Live demo: mid-task autonomous vision
+## Live demo: a real GUI image turn
 
-During a deployment-check task, the agent's tooling returned a screenshot path; the model **autonomously decided to look at it** and called `view_image` — the proxy transcribed the image through the VLM, and the model continued its analysis on the resulting text.
+A real conversation on the `deepseek-vision` route (DeepSeek-V4-Flash as the brain): the user pasted a meme and asked **"你看到了什么"** (what do you see?); the image was auto-transcribed by the VLM and DeepSeek answered from the text — one step, ~7.6 s.
 
-![Mid-task vision demo](assets/demo.png)
+<p align="center">
+  <img src="assets/demo-selector.png" width="49%" alt="The model picker showing the deepseek-vision route (DeepSeek + 自动识图) selected" />
+  <img src="assets/demo-reply.png" width="49%" alt="DeepSeek's full answer derived from the transcribed image text" />
+</p>
+
+*Left: the model picker showing the `deepseek-vision` route (**DeepSeek + 自动识图**) selected — that is what admits image attachments. Right: DeepSeek's full answer derived from the transcribed image text.*
 
 ```
-task: analyze the deploy report
-  → tooling returns deploy-report.png (a file path)
-  → model autonomously calls view_image("deploy-report.png", "read every line verbatim")
-  → VLM transcribes (OCR + layout):
-      "Deploy Report - 2026-08-13 22:47:12
-       [ERROR] web-server: Connection refused: localhost:8080
-       [ERROR] database: timeout after 5000ms
-       [INFO ] retry 1/3 ...
-       [ERROR] TLS handshake failed: cert expired (demo.local)
-       [INFO ] rollback to release-2026.08.12
-       exit code: 1"
-  → model analyzes the failure from the text and answers
+user pastes a meme image + "你看到了什么"
+  → image block auto-transcribed via the VLM (OCR + layout):
+      "我是吃白饭的 / 蓝色大肥鱼！ (理直气壮.jpg) — Q-version blue-haired maid girl
+       with a whale tail, holding a bowl of rice and chopsticks, excited expression"
+  → DeepSeek answers with a full visual analysis of the meme
 ```
 
 Two autonomous paths are covered: the `view_image` tool (any route, file paths & URLs) and image-block auto-transcription (on the `deepseek-vision` route — images you attach mid-conversation).
