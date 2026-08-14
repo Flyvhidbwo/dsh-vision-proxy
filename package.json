@@ -1,4 +1,4 @@
-{
+﻿{
     "name":  "dsh-vision-proxy",
     "version":  "0.1.6",
     "description":  "DeepSeek brain + automatic image transcription for DeepSeek Harness: a `deepseek-vision` provider route that transcribes attached images to text via any OpenAI-compatible VLM before delegating to the text-only DeepSeek adapter. GUI image attachments work with DeepSeek as the conversation brain.",
@@ -57,7 +57,7 @@
                                  "sharp":  "^0.34.0"
                              },
     "scripts":  {
-                    "test":  "node --test tests/"
+                    "test":  "node --test \"tests/**/*.test.js\""
                 },
     "pnpm":  {
                  "onlyBuiltDependencies":  [
