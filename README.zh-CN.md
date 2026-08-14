@@ -83,8 +83,9 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
         apiKey: ''            # 留空则读环境变量；完全没有 key 也能用（见下方说明）
         model: qwen3.7-flash
-        maxTokens: 2048
-        timeoutMs: 60000
+        maxTokens: 4096      # 思考型模型会先消耗推理 token，预算给足
+        timeoutMs: 120000    # 大图 + 思考型模型耗时可能超过 60s
+        maxImagePixels: 4000000   # 超过 400 万像素的图自动降采样（装有 sharp 时）
         marker: '[图片转译]'
         # 降级链：主模型失败时依次尝试；默认最后兜底是 OVHcloud 匿名端点
         # （免注册免 key，限速 2 次/分/IP）——新装零配置、无 key 也能识图（慢）。
@@ -101,8 +102,9 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 | `baseURL` | DashScope 兼容模式 | OpenAI 兼容 VLM 端点（任意厂商，含 Ollama） |
 | `apiKey` | `''` | VLM 密钥；回退读取 `$VISION_API_KEY`，再回退 `$DASHSCOPE_API_KEY` |
 | `model` | `qwen3.7-flash` | 视觉模型 id（如 `qwen3-vl-flash`、`glm-4.6v-flash`，本地 Ollama 可用 `qwen3-vl:4b`） |
-| `maxTokens` | `2048` | VLM 输出上限 |
-| `timeoutMs` | `60000` | VLM 请求超时 |
+| `maxTokens` | `4096` | VLM 输出上限 |
+| `timeoutMs` | `120000` | VLM 请求超时 |
+| `maxImagePixels` | `4000000` | 超过该像素数的图片在转译前自动降采样（装有 `sharp` 时生效；0 关闭；无 sharp 则原图直发） |
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
 | `fallbackModels` | `[OVH 匿名]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` 数组，按顺序尝试；未写的字段继承主配置；`anonymous: true` 的端点无需 key |
 
@@ -117,8 +119,9 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
     baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
     apiKey: 'sk-…'            # 或留空，改用环境变量 VISION_API_KEY
     model: qwen3.7-flash
-    maxTokens: 2048
-    timeoutMs: 60000
+    maxTokens: 4096
+    timeoutMs: 120000
+    maxImagePixels: 4000000
     marker: '[图片转译]'
 ```
 
@@ -138,8 +141,10 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 - **降级链**：主模型失败（限流/额度/鉴权/网络…）时按 `fallbackModels` 顺序依次尝试，全部失败才报错，错误信息会列出每次尝试。
 - **内容哈希缓存**：转译结果按图片字节的 SHA-256 缓存（进程内，上限 200 条）——同一张图即使换了 attachmentId 或换了会话，每个进程也只转译一次。
 - **错误分类**：VLM 失败按类型分类（限流 / 额度 / 鉴权 / 区域 / 模型不存在 / 上下文超限 / HTTP），报错附带可操作建议；HTTP 429 会按 `Retry-After` 自动重试一次（上限 15 秒）。
+- **自动降采样**（可选）：装有 `sharp` 时，超过 `maxImagePixels` 的图片会在转译前自动缩小——图片 token 大幅减少，大截图不再慢吞吞。没有 sharp 时原图直发，功能不受影响（sharp 为可选依赖，装不上就优雅降级）。
 - `read_image` 工具在该路由下同样可用（其能力门禁读取的是同一份模型信息）。
-- 启动时插件会打印一行摘要日志——路由 id、被包装的 provider、VLM 模型、端点、apiKey 来源和降级列表（永远不会打印密钥本身）。发图前可以先看这行确认当前生效的 VLM。
+- 启动时插件会打印一行摘要日志——路由 id、被包装的 provider、VLM 模型、端点、超时、maxTokens、apiKey 来源和降级列表（永远不会打印密钥本身）。发图前可以先看这行确认当前生效的 VLM。
+- 已内置测试：10 个单元测试（`npm test`，`node --test tests/`）覆盖降级链、内容哈希缓存、错误分类、429 重试与降采样守卫；CI 在 Node 22/24 上运行。
 
 ## 实现原理（给插件开发者）
 

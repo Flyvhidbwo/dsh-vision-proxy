@@ -12,8 +12,9 @@
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
         apiKey: ''            # 留空则读环境变量；没有 key 也能用（走下方匿名兜底）
         model: qwen3.7-flash
-        maxTokens: 2048
-        timeoutMs: 60000
+        maxTokens: 4096       # 思考型模型会先消耗推理 token，预算给足
+        timeoutMs: 120000     # 大图 + 思考型模型耗时可能超过 60s
+        maxImagePixels: 4000000   # 超过 400 万像素的图自动降采样（装有 sharp 时）
         marker: '[图片转译]'
         # 降级链：主模型失败时依次尝试；默认最后兜底是 OVHcloud 匿名端点
         # （免注册免 key，限速 2 次/分/IP）。可加智谱免费档等其它模型。

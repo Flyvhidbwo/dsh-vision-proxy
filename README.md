@@ -83,8 +83,9 @@ Config lives in the plugin row (bundle default below; override in your profile's
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
         apiKey: ''            # leave empty to read environment variables — or no key at all (see below)
         model: qwen3.7-flash
-        maxTokens: 2048
-        timeoutMs: 60000
+        maxTokens: 4096      # thinking models spend tokens on reasoning first — give them headroom
+        timeoutMs: 120000    # large images + thinking models can exceed 60s
+        maxImagePixels: 4000000  # images above 4 MP are downscaled before transcription (when sharp is installed)
         marker: '[图片转译]'
         # Fallback chain: tried in order when the main model fails. The default
         # ships with a registration-free anonymous endpoint (OVHcloud, 2 req/min/IP),
@@ -102,8 +103,9 @@ Config lives in the plugin row (bundle default below; override in your profile's
 | `baseURL` | DashScope compatible-mode | OpenAI-compatible VLM endpoint (any vendor, Ollama included) |
 | `apiKey` | `''` | VLM key; falls back to `$VISION_API_KEY`, then `$DASHSCOPE_API_KEY` |
 | `model` | `qwen3.7-flash` | Vision model id (e.g. `qwen3-vl-flash`, `glm-4.6v-flash`, `qwen3-vl:4b` for local Ollama) |
-| `maxTokens` | `2048` | VLM output cap |
-| `timeoutMs` | `60000` | VLM request timeout |
+| `maxTokens` | `4096` | VLM output cap |
+| `timeoutMs` | `120000` | VLM request timeout |
+| `maxImagePixels` | `4000000` | Images above this pixel count are downscaled before transcription when `sharp` is installed (0 disables; without sharp the original is sent) |
 | `marker` | `[图片转译]` | Marker prepended to each transcription |
 | `fallbackModels` | `[OVH anonymous]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry inherits the main config unless overridden; `anonymous: true` endpoints need no key |
 
@@ -118,8 +120,9 @@ Config lives in the plugin row (bundle default below; override in your profile's
     baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
     apiKey: 'sk-…'           # or leave '' and export VISION_API_KEY instead
     model: qwen3.7-flash
-    maxTokens: 2048
-    timeoutMs: 60000
+    maxTokens: 4096
+    timeoutMs: 120000
+    maxImagePixels: 4000000
     marker: '[图片转译]'
 ```
 
@@ -139,8 +142,10 @@ Config lives in the plugin row (bundle default below; override in your profile's
 - **Fallback chain**: when the main model fails (rate limit, quota, auth, network…), `fallbackModels` entries are tried in order; the request only fails after all of them failed, with one error listing every attempt.
 - **Content-hash cache**: transcriptions are cached by the SHA-256 of the image bytes (in-process, capped at 200), so the same image — even re-attached under a new attachment id or in another conversation — is transcribed at most once per process.
 - **Classified errors**: failed VLM responses are classified (`rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http`) and the error carries an actionable hint; HTTP 429 honors `Retry-After` once (capped at 15 s) before giving up.
+- **Auto-downscale** (optional): when `sharp` is installed, images above `maxImagePixels` are downscaled before transcription — fewer image tokens, much faster on big screenshots. Without sharp the original is sent as-is. `sharp` is an optional dependency: installs best-effort, and the plugin degrades gracefully.
 - `read_image` also works on this route (its capability gate reads the same model info).
-- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint, apiKey source and fallback list (the key itself is never logged). Check it to confirm the active VLM before sending images.
+- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint, timeout, maxTokens, apiKey source and fallback list (the key itself is never logged). Check it to confirm the active VLM before sending images.
+- Tested: 10 unit tests (`npm test`, `node --test tests/`) cover the fallback chain, content-hash cache, error classification, retry-once and downscale guard; CI runs them on Node 22 and 24.
 
 ## How it works (for plugin developers)
 
