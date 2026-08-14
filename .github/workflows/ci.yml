@@ -19,4 +19,4 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
       - name: Reject UTF-8 BOM in package.json (dsh cannot parse it)
-        run: node -e "const b=require('fs').readFileSync('package.json'); if (b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF) { console.error('package.json starts with a UTF-8 BOM — dsh\'s JSON.parse will crash on install'); process.exit(1) } else { console.log('package.json: no BOM, JSON parses OK:', JSON.parse(b.toString('utf8')).name) }"
+        run: node scripts/check-no-bom.js

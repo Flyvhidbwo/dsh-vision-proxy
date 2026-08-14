@@ -49,7 +49,7 @@ Write-Host "==> dsh-vision-proxy release ($Version)" -ForegroundColor Cyan
 if (git status --porcelain) { Fail "working tree is not clean - commit or stash first" }
 node --check lib/index.js
 if ($LASTEXITCODE -ne 0) { Fail "syntax check failed (lib/index.js)" }
-node -e "const b=require('fs').readFileSync('package.json'); if (b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF) { console.error('package.json starts with a UTF-8 BOM — dsh\\'s JSON.parse will crash on install'); process.exit(1) } else { console.log('package.json: no BOM, JSON parses OK:', JSON.parse(b.toString('utf8')).name) }"
+node scripts/check-no-bom.js
 if ($LASTEXITCODE -ne 0) { Fail "package.json has a UTF-8 BOM - rewrite it without BOM ([IO.File]::WriteAllText with UTF8Encoding(false))" }
 
 if (-not $SkipPublish) {
