@@ -13,6 +13,20 @@
     "LICENSE"
   ],
   "license": "MIT",
+  "author": {
+    "name": "Flyvhidbwo"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flyvhidbwo/dsh-vision-proxy.git"
+  },
+  "homepage": "https://github.com/Flyvhidbwo/dsh-vision-proxy#readme",
+  "bugs": {
+    "url": "https://github.com/Flyvhidbwo/dsh-vision-proxy/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=22.19.0",
     "dsh": ">=0.1.0-rc.6"
