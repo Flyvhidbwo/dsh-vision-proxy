@@ -2,12 +2,12 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**Keep DeepSeek as the brain — paste images anyway.** Zero-config free vision for text-only DeepSeek on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+**Keep DeepSeek as the brain — paste images anyway.** GUI image attachments auto-transcribed for text-only DeepSeek on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 
 <p align="center">
   <a href="https://www.npmjs.com/package/dsh-vision-proxy"><img src="https://img.shields.io/npm/v/dsh-vision-proxy?style=flat-square" alt="npm version" /></a>
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy/actions/workflows/ci.yml"><img src="https://github.com/Flyvhidbwo/dsh-vision-proxy/actions/workflows/ci.yml/badge.svg" alt="CI (Node 22/24)" /></a>
-  <img src="https://img.shields.io/badge/tests-11%20passed-2EA44F?style=flat-square" alt="11 tests" />
+  <img src="https://img.shields.io/badge/tests-14%20passed-2EA44F?style=flat-square" alt="14 tests" />
   <img src="https://img.shields.io/badge/license-MIT-0B7285?style=flat-square" alt="MIT" />
   <img src="https://img.shields.io/badge/node-%3E%3D22.19-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node >=22.19" />
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
@@ -28,11 +28,13 @@ user attaches image ──▶ deepseek-vision route ──▶ transcribe via VLM
 
 ## Features
 
-- **Free out of the box.** No API key, no account, no configuration: a built-in registration-free anonymous endpoint (OVHcloud AI Endpoints, `Qwen2.5-VL-72B-Instruct`, ~2 req/min/IP) is the effective default when no key is set.
+- **No hangs, ever.** Anonymous endpoints are hard-capped at 20 s (a hanging free tier can no longer stall a turn for minutes); HTTP 429 on anonymous endpoints fails immediately instead of sleeping on a useless `Retry-After`; endpoints that just failed (429/timeout) are cooled down for 60 s and skipped.
 - **Multi-model, multi-provider.** Any OpenAI-compatible VLM endpoint works — DashScope/Qwen, QwenCloud (international), Zhipu, OpenRouter, local Ollama, or your own. Each `fallbackModels` entry can carry its **own** `baseURL`/`model`, so one install can chain providers.
+- **Zero-config local path.** With `autoLocalOllama` (default on), a running Ollama at `http://localhost:11434` is detected at startup and prepended to the fallback chain — images never leave your machine. No key, no account.
+- **Fast, clear failures.** With no key and no local Ollama, transcription fails in seconds with actionable guidance (configure `VISION_API_KEY` / `DASHSCOPE_API_KEY` or install Ollama) — never a silent stall.
 - **Automatic upgrade when you have a key.** Export `VISION_API_KEY` / `DASHSCOPE_API_KEY` and the paid fast path (DashScope `qwen3.7-flash` — fast, cheap, no rate limit) is used automatically; keyless entries are skipped, not failed.
-- **Install-time consent prompt.** `postinstall` asks whether you have a VLM API key (no → free default; yes → fast path guidance). Non-interactive environments skip the prompt; the install never hangs. A PRIVACY NOTICE is printed at startup naming the active endpoint.
-- **Fallback chain with classified errors.** `rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http` are classified with actionable hints; HTTP 429 honors `Retry-After` once (capped at 15 s).
+- **Install-time consent prompt.** `postinstall` asks whether you have a VLM API key. Non-interactive environments skip the prompt; the install never hangs. A PRIVACY NOTICE is printed at startup naming the active endpoint.
+- **Fallback chain with classified errors.** `rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http` are classified with actionable hints.
 - **Content-hash cache.** Transcriptions are cached by the SHA-256 of the image bytes (in-process, capped at 200) — the same image is transcribed at most once per process, even re-attached or in another conversation.
 - **Auto-downscale (optional).** With `sharp` installed, images above `maxImagePixels` are downscaled before transcription — fewer image tokens, much faster on big screenshots. Degrades gracefully without sharp.
 - **`read_image` compatible.** The native `read_image` tool also works on this route (its capability gate reads the same model info).
@@ -43,24 +45,38 @@ One config (`baseURL` + `model`, optionally `apiKey`) covers every backend:
 
 | Scenario | baseURL | model | Notes |
 |---|---|---|---|
-| **Default — free** | `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1` | `Qwen2.5-VL-72B-Instruct` | Anonymous, no account/key, ~2 req/min/IP, best-effort. Built-in fallback; the effective default with no key |
-| **DashScope (China)** | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-flash` / `qwen3-vl-flash` | Cheap, fast, no rate limit. Keys: `sk-ws-…` from [platform.qianwenai.com](https://platform.qianwenai.com) or `sk-…` from [bailian.console.aliyun.com](https://bailian.console.aliyun.com). Auto-enabled as fallback when a key is present |
+| **DashScope (China)** — default main | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-flash` / `qwen3-vl-flash` | Cheap, fast, no rate limit. Keys: `sk-ws-…` from [platform.qianwenai.com](https://platform.qianwenai.com) or `sk-…` from [bailian.console.aliyun.com](https://bailian.console.aliyun.com) |
+| **Local Ollama (auto-detected)** | `http://localhost:11434/v1` | first vision-capable model | Zero config when installed; images never leave the machine |
 | **QwenCloud (intl.)** | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen3-vl-plus` etc. | International variant |
 | **Zhipu (free tier)** | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6v-flash` | Free tier, still needs a (free) Zhipu API key |
-| **Local Ollama** | `http://localhost:11434/v1` | `qwen3-vl:4b` etc. | No key; images never leave your machine |
 | **Anything OpenAI-compatible** | your endpoint | your model | OpenRouter, Ark, vLLM, gateways… the plugin only speaks `/chat/completions` |
 
-**Key resolution order**: config `apiKey` → `$VISION_API_KEY` → `$DASHSCOPE_API_KEY`. Anonymous endpoints (`anonymous: true`) need no key; keyless non-anonymous entries are skipped automatically.
+> ⚠️ **Anonymous third-party free tiers are NOT bundled as a default fallback.** In field testing, anonymous free endpoints (e.g. OVHcloud AI Endpoints) were strictly rate-limited AND occasionally hung without a response — as a default they just reproduce a broken experience. If you still want to point at one, add it yourself via `fallbackModels` with `anonymous: true` (the 20 s cap still applies).
+
+**Key resolution order**: config `apiKey` → `$VISION_API_KEY` → `$DASHSCOPE_API_KEY`. Anonymous endpoints (`anonymous: true`) and local hosts need no key; keyless non-anonymous entries are skipped automatically.
 
 ## Quick start
 
 ```sh
-dsh plugin --profile web add dsh-vision-proxy   # or: github:Flyvhidbwo/dsh-vision-proxy
+dsh plugin --profile web add dsh-vision-proxy
 ```
 
-During install you are asked one question — *do you have a VLM API key?* Answer `N` (default) for the free zero-config path, or `y` for guidance to the fast paid path. Restart `dsh web`, pick **DeepSeek + 自动识图** in the model selector, then paste an image into any conversation — it just works.
+During install you are asked one question — *do you have a VLM API key?* Answer `y` for the paid fast path, or `N` (default) for the local/zero-config path. Restart `dsh web`, pick **DeepSeek + 自动识图** in the model selector, then paste an image into any conversation.
 
-> pnpm ≥ 10 blocks dependency build scripts by default. If the install says "Ignored build scripts", run `pnpm approve-builds` once (select `dsh-vision-proxy`) or add `allowBuilds: dsh-vision-proxy: true` to the profile's `pnpm-workspace.yaml`. Without approval the prompt is skipped and the free default applies.
+**pnpm ≥ 10 blocks dependency build scripts by default** — the first install exits non-zero with `Ignored build scripts: dsh-vision-proxy, sharp`. Approve both (the plugin's consent prompt and `sharp`'s optional binary), then re-run the install to finish bundle registration:
+
+```yaml
+# in the profile's pnpm-workspace.yaml
+allowBuilds:
+  dsh-vision-proxy: true
+  sharp: true
+```
+
+```sh
+dsh plugin --profile web add dsh-vision-proxy   # re-run after approving
+```
+
+> **Slow npm registry in China?** `dsh plugin --profile web add dsh-vision-proxy --registry=https://registry.npmmirror.com` (the flag is forwarded to pnpm).
 
 ## Live demo: a real GUI image turn
 
@@ -96,13 +112,11 @@ Bundle defaults (override in your profile's `cordis.patch.yml`):
         apiKey: ''            # or export VISION_API_KEY / DASHSCOPE_API_KEY
         model: qwen3.7-flash
         maxTokens: 4096
-        timeoutMs: 120000
+        timeoutMs: 120000     # anonymous endpoints are hard-capped at 20 s anyway
         maxImagePixels: 4000000
         marker: '[图片转译]'
-        fallbackModels:
-          - model: Qwen2.5-VL-72B-Instruct
-            baseURL: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
-            anonymous: true
+        autoLocalOllama: true
+        fallbackModels: []    # add your own {model, baseURL, apiKey?, anonymous?, timeoutMs?}
 ```
 
 | Key | Default | Meaning |
@@ -110,28 +124,41 @@ Bundle defaults (override in your profile's `cordis.patch.yml`):
 | `providerId` | `deepseek-vision` | Route id shown in the model picker |
 | `innerProvider` | `deepseek-official` | Existing adapter route to wrap |
 | `baseURL` | DashScope compatible-mode | OpenAI-compatible VLM endpoint (any vendor, Ollama included) |
-| `apiKey` | `''` | VLM key; falls back to `$VISION_API_KEY`, then `$DASHSCOPE_API_KEY` |
-| `anonymous` | `false` | Skip the Authorization header (for registration-free endpoints) |
+| `apiKey` | `''` | VLM key; falls back to `$VISION_API_KEY`, then `$DASHSCOPE_API_KEY`. On Windows, environment changes may not reach a running dsh — writing `apiKey` here is the reliable way |
+| `anonymous` | `false` | Skip the Authorization header (for registration-free endpoints; 20 s timeout cap applies) |
 | `model` | `qwen3.7-flash` | Vision model id (e.g. `Qwen2.5-VL-72B-Instruct`, `qwen3-vl-flash`, `glm-4.6v-flash`, `qwen3-vl:4b`) |
 | `maxTokens` | `4096` | VLM output cap (thinking models spend tokens on reasoning first) |
-| `timeoutMs` | `120000` | VLM request timeout |
+| `timeoutMs` | `120000` | VLM request timeout (anonymous endpoints are capped at 20 s regardless) |
 | `maxImagePixels` | `4000000` | Images above this are downscaled before transcription when `sharp` is installed (0 disables) |
 | `marker` | `[图片转译]` | Marker prepended to each transcription |
-| `fallbackModels` | `[OVH anonymous]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry may point at a **different provider**; keyless non-anonymous entries are skipped |
+| `autoLocalOllama` | `true` | Probe `http://localhost:11434` at startup; when found, prepend it to the fallback chain |
+| `localOllamaModel` | `''` | Ollama model id; empty picks the first vision-capable model the local Ollama reports |
+| `fallbackModels` | `[]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry may point at a **different provider**; keyless non-anonymous entries are skipped |
 
-> **Prefer `VISION_API_KEY` over writing the key into a patch file**: `dsh --profile <name> --dump-config` prints the composed config as-is, so a key in `cordis.patch.yml` appears in plaintext dumps.
+> **About API keys on Windows**: `dsh --profile <name> --dump-config` prints the composed config as-is (so a key in `cordis.patch.yml` shows in plaintext dumps), but environment variables set after a process started (explorer.exe caches them) may never reach a running dsh. If you see `skipped — no API key` despite having exported the key, **write `apiKey` directly into the plugin config** — it is the only reliable path on Windows.
 
 ## Behavior notes
 
 - Only messages containing image blocks are touched; plain-text conversations hit DeepSeek with zero overhead.
-- The request only fails after every chain entry failed, with one error listing each attempt.
+- Anonymous endpoints: 20 s hard timeout cap, HTTP 429 fails immediately (no retry), failures arm a 60 s endpoint cooldown — consecutive images don't re-hit a broken endpoint.
+- The request only fails after every chain entry failed, with one error listing each attempt plus actionable guidance.
 - Transcription results are cached in-process by image content hash (never persisted).
-- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint, timeout, maxTokens, apiKey source and fallback list (the key itself is never logged), plus a PRIVACY NOTICE naming the active endpoint.
-- Tested: 11 unit tests on Node 22 and 24 via GitHub Actions.
+- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint, timeout, maxTokens, apiKey source and fallback list (the key itself is never logged), plus a PRIVACY NOTICE and a local-Ollama detection line.
+- Tested: 14 unit tests on Node 22 and 24 via GitHub Actions (incl. no-hang fast-fail, cooldown skip, and Ollama detection).
+
+## Troubleshooting
+
+| Symptom | Cause & fix |
+|---|---|
+| `skipped — no API key` despite exporting `VISION_API_KEY` | Windows caches environment variables in explorer.exe; the running dsh never saw them. Write `apiKey` directly into the plugin config, then restart dsh |
+| `Ignored build scripts: dsh-vision-proxy, sharp` on install | pnpm ≥ 10 blocks dependency build scripts. Add `allowBuilds: {dsh-vision-proxy: true, sharp: true}` to the profile's `pnpm-workspace.yaml`, then re-run the install |
+| `all N vision model(s) failed … rate_limit` on an anonymous endpoint | Anonymous free tiers are strictly rate-limited and may hang. Configure a key or use local Ollama |
+| Turn stalls ~20 s then fails on a fresh install with no key | No key and no local Ollama — that is the intended fast-fail path. Install Ollama or add a key |
+| Slow downloads from registry.npmjs.org | Use `--registry=https://registry.npmmirror.com` (forwarded to pnpm) |
 
 ## Privacy
 
-Transcription sends image bytes (base64, over HTTPS) to the configured VLM endpoint — **the image data leaves your machine** unless `baseURL` points at a local service (e.g. Ollama). Default with no key: the anonymous OVHcloud AI Endpoints. With a key: Alibaba Cloud Model Studio (DashScope). Nothing is stored beyond the harness's own attachment store. For sensitive images, use your own endpoint or a local model — or don't install.
+Transcription sends image bytes (base64, over HTTPS) to the configured VLM endpoint — **the image data leaves your machine** unless `baseURL` points at a local service (e.g. Ollama). Nothing is stored beyond the harness's own attachment store. For sensitive images, use your own endpoint or a local model — or don't install.
 
 ## How it works (for plugin developers)
 

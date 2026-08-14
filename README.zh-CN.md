@@ -2,12 +2,12 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**保持 DeepSeek 作为对话大脑，图片照样直接发。** 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 打造的零配置免费识图插件。
+**保持 DeepSeek 作为对话大脑，图片照样直接发。** 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 打造：GUI 附加图片自动转译，纯文本 DeepSeek 也能识图。
 
 <p align="center">
   <a href="https://www.npmjs.com/package/dsh-vision-proxy"><img src="https://img.shields.io/npm/v/dsh-vision-proxy?style=flat-square" alt="npm version" /></a>
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy/actions/workflows/ci.yml"><img src="https://github.com/Flyvhidbwo/dsh-vision-proxy/actions/workflows/ci.yml/badge.svg" alt="CI (Node 22/24)" /></a>
-  <img src="https://img.shields.io/badge/tests-11%20passed-2EA44F?style=flat-square" alt="11 项测试通过" />
+  <img src="https://img.shields.io/badge/tests-14%20passed-2EA44F?style=flat-square" alt="14 项测试通过" />
   <img src="https://img.shields.io/badge/license-MIT-0B7285?style=flat-square" alt="MIT" />
   <img src="https://img.shields.io/badge/node-%3E%3D22.19-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node >=22.19" />
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
@@ -28,11 +28,13 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 
 ## 特性
 
-- **免费开箱即用**。无需 API key、无需注册、零配置：内置免注册匿名端点（OVHcloud AI Endpoints，`Qwen2.5-VL-72B-Instruct`，约 2 次/分/IP）在没有 key 时就是实际默认。
+- **绝不卡死**。匿名端点强制 20 秒超时上限（免费档挂起也拖不住整轮对话）；匿名端点遇到 HTTP 429 **立即失败**（不做无意义的 Retry-After 等待）；刚失败（429/超时）的端点进入 60 秒冷却并被跳过。
 - **多模型、多厂商**。任何 OpenAI 兼容 VLM 端点都行——百炼/Qwen、QwenCloud 国际站、智谱、OpenRouter、本地 Ollama、或你自己的端点。每条 `fallbackModels` 都可以带**各自独立的** `baseURL`/`model`，一个安装即可串联多家。
+- **零配置本地路径**。`autoLocalOllama`（默认开）启动时探测 `http://localhost:11434`，检测到 Ollama 就自动加入降级链——图片不出本机，免 key 免注册。
+- **快速且明确的失败**。没有 key 也没有本地 Ollama 时，转译在几秒内失败并给出可操作指引（配置 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 或安装 Ollama）——绝不静默卡住。
 - **有 key 自动提速**。导出 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 后自动走付费快速通道（百炼 `qwen3.7-flash`——快、便宜、不限速）；没有 key 的条目会被**跳过**而不是失败。
-- **安装时一问式确认**。`postinstall` 询问你是否有 VLM API key（没有 → 免费默认；有 → 引导快速通道）。非交互环境自动跳过，安装永不卡死。启动时还会打印 PRIVACY NOTICE 标明当前使用的端点。
-- **降级链 + 错误分类**。`rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http` 分类给出可操作提示；HTTP 429 遵循 `Retry-After` 重试一次（上限 15 秒）。
+- **安装时一问式确认**。`postinstall` 询问你是否有 VLM API key。非交互环境自动跳过，安装永不卡死。启动时打印 PRIVACY NOTICE 标明当前使用的端点。
+- **降级链 + 错误分类**。`rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http` 分类给出可操作提示。
 - **内容哈希缓存**。转译结果按图片字节的 SHA-256 缓存（进程内，上限 200）——同一张图每个进程最多转译一次，重新附加或换对话也命中。
 - **自动降采样（可选）**。装有 `sharp` 时，超过 `maxImagePixels` 的图片转译前自动缩小——大截图更快；没有 sharp 则优雅降级原图直发。
 - **兼容 `read_image`**。原生 `read_image` 工具在该路由下同样可用（它的能力门禁读取同一份模型信息）。
@@ -43,24 +45,38 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 
 | 场景 | baseURL | model | 说明 |
 |---|---|---|---|
-| **默认（免费）** | `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1` | `Qwen2.5-VL-72B-Instruct` | 匿名、免注册免 key、约 2 次/分/IP、尽力而为；内置兜底，无 key 时的实际默认 |
-| **百炼（国内）** | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-flash` / `qwen3-vl-flash` | 便宜、快、不限速。密钥：千问平台 `sk-ws-…` 或百炼 `sk-…`。有 key 时自动作为降级项启用 |
+| **百炼（国内）**——默认主模型 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-flash` / `qwen3-vl-flash` | 便宜、快、不限速。密钥：千问平台 `sk-ws-…` 或百炼 `sk-…` |
+| **本地 Ollama（自动探测）** | `http://localhost:11434/v1` | 第一个视觉模型 | 装了就零配置可用；图片不出本机 |
 | **QwenCloud（国际）** | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen3-vl-plus` 等 | 国际版 |
 | **智谱（免费档）** | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6v-flash` | 免费档仍需注册智谱（免费）key |
-| **本地 Ollama** | `http://localhost:11434/v1` | `qwen3-vl:4b` 等 | 无需 key；图片不出本机 |
 | **任意 OpenAI 兼容端点** | 你的端点 | 你的模型 | OpenRouter、火山 Ark、vLLM、各类网关……插件只讲 `/chat/completions` |
 
-**key 读取顺序**：配置 `apiKey` → `$VISION_API_KEY` → `$DASHSCOPE_API_KEY`。匿名端点（`anonymous: true`）无需 key；无 key 的非匿名条目自动跳过。
+> ⚠️ **不再内置任何第三方匿名免费端点作为默认兜底**。实测中匿名免费端点（如 OVHcloud AI Endpoints）限速极严且会无响应挂起——作为默认只会复现"卡死"体验。如果你仍想用某个匿名端点，请通过 `fallbackModels` 自行添加并设 `anonymous: true`（20 秒超时上限依然生效）。
+
+**key 读取顺序**：配置 `apiKey` → `$VISION_API_KEY` → `$DASHSCOPE_API_KEY`。匿名端点（`anonymous: true`）和本地主机无需 key；无 key 的非匿名条目自动跳过。
 
 ## 快速开始
 
 ```sh
-dsh plugin --profile web add dsh-vision-proxy   # 或：github:Flyvhidbwo/dsh-vision-proxy
+dsh plugin --profile web add dsh-vision-proxy
 ```
 
-安装时会问你一个问题——*你有 VLM API key 吗？* 回答 `N`（默认）走免费零配置，回答 `y` 走快速通道引导。重启 `dsh web`，在模型选择器里选 **DeepSeek + 自动识图**，然后把图片粘贴进任意对话——完事。
+安装时会问你一个问题——*你有 VLM API key 吗？* 回答 `y` 走付费快速通道，回答 `N`（默认）走本地/零配置路径。重启 `dsh web`，在模型选择器里选 **DeepSeek + 自动识图**，然后把图片粘贴进任意对话——完事。
 
-> pnpm ≥ 10 默认拦截依赖构建脚本。如果安装时提示 "Ignored build scripts"，先执行一次 `pnpm approve-builds`（勾选 `dsh-vision-proxy`），或在 profile 的 `pnpm-workspace.yaml` 加 `allowBuilds: dsh-vision-proxy: true`。不授权也只是跳过询问、免费默认照常生效。
+**pnpm ≥ 10 默认拦截依赖构建脚本**——首次安装会以非零码退出并提示 `Ignored build scripts: dsh-vision-proxy, sharp`。请批准两者（插件的安装确认提示 + `sharp` 的可选二进制），然后**重跑一次安装**完成 bundle 注册：
+
+```yaml
+# 写在 profile 的 pnpm-workspace.yaml 里
+allowBuilds:
+  dsh-vision-proxy: true
+  sharp: true
+```
+
+```sh
+dsh plugin --profile web add dsh-vision-proxy   # 批准后重跑
+```
+
+> **npm 官方源太慢？** `dsh plugin --profile web add dsh-vision-proxy --registry=https://registry.npmmirror.com`（参数会转发给 pnpm）。
 
 ## 现场演示：真实对话中的识图
 
@@ -96,13 +112,11 @@ bundle 默认值（可在你的 profile 的 `cordis.patch.yml` 覆盖）：
         apiKey: ''            # 或导出 VISION_API_KEY / DASHSCOPE_API_KEY
         model: qwen3.7-flash
         maxTokens: 4096
-        timeoutMs: 120000
+        timeoutMs: 120000     # 匿名端点无论如何都会被强制 20s 上限
         maxImagePixels: 4000000
         marker: '[图片转译]'
-        fallbackModels:
-          - model: Qwen2.5-VL-72B-Instruct
-            baseURL: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
-            anonymous: true
+        autoLocalOllama: true
+        fallbackModels: []    # 可自行添加 {model, baseURL, apiKey?, anonymous?, timeoutMs?}
 ```
 
 | 键 | 默认值 | 含义 |
@@ -110,28 +124,41 @@ bundle 默认值（可在你的 profile 的 `cordis.patch.yml` 覆盖）：
 | `providerId` | `deepseek-vision` | 模型选择器中显示的路由 id |
 | `innerProvider` | `deepseek-official` | 被包装的现有适配器路由 |
 | `baseURL` | DashScope 兼容模式 | OpenAI 兼容 VLM 端点（任意厂商，含 Ollama） |
-| `apiKey` | `''` | VLM 密钥；回退读取 `$VISION_API_KEY`，再回退 `$DASHSCOPE_API_KEY` |
-| `anonymous` | `false` | 跳过 Authorization 头（用于免注册端点） |
+| `apiKey` | `''` | VLM 密钥；回退读取 `$VISION_API_KEY`，再回退 `$DASHSCOPE_API_KEY`。**Windows 下环境变量变更可能不生效，直写这里最可靠** |
+| `anonymous` | `false` | 跳过 Authorization 头（用于免注册端点；受 20s 超时上限约束） |
 | `model` | `qwen3.7-flash` | 视觉模型 id（如 `Qwen2.5-VL-72B-Instruct`、`qwen3-vl-flash`、`glm-4.6v-flash`、`qwen3-vl:4b`） |
 | `maxTokens` | `4096` | VLM 输出上限（思考型模型先耗推理 token，预算给足） |
-| `timeoutMs` | `120000` | VLM 请求超时 |
+| `timeoutMs` | `120000` | VLM 请求超时（匿名端点无论如何都被强制 20s 上限） |
 | `maxImagePixels` | `4000000` | 超过该像素数的图片转译前自动降采样（装有 `sharp` 时；0 关闭） |
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
-| `fallbackModels` | `[OVH 匿名]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}`，每条可指向**不同厂商**；无 key 的非匿名条目自动跳过 |
+| `autoLocalOllama` | `true` | 启动时探测 `http://localhost:11434`；检测到则前置进降级链 |
+| `localOllamaModel` | `''` | 指定 Ollama 模型 id；留空自动选本地 Ollama 报告的第一个视觉模型 |
+| `fallbackModels` | `[]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}`，每条可指向**不同厂商**；无 key 的非匿名条目自动跳过 |
 
-> **优先用 `VISION_API_KEY` 而不是把 key 写进 patch 文件**：`dsh --profile <name> --dump-config` 会原样打印组合后的配置，写在 `cordis.patch.yml` 里的 key 会出现在明文输出中。
+> **Windows 上关于 API key 的说明**：`dsh --profile <name> --dump-config` 会原样打印组合后的配置（写在 `cordis.patch.yml` 里的 key 会出现在明文输出中），但另一方面，进程启动后设置的环境变量（explorer.exe 会缓存旧环境）可能永远到不了正在运行的 dsh。如果你明明导出了 key 却看到 `skipped — no API key`，**请把 `apiKey` 直接写进插件配置**——这是 Windows 上唯一可靠的方式。
 
 ## 行为说明
 
 - 只有含图片块的消息才会被处理；纯文本对话零开销直达 DeepSeek。
-- 全部链路条目都失败才报错，错误会列出每一次尝试。
+- 匿名端点：20 秒硬超时上限、HTTP 429 立即失败（不重试）、失败后触发 60 秒端点冷却——连发图片不会反复踩坏端点。
+- 全部链路条目都失败才报错，错误会列出每一次尝试并附可操作指引。
 - 转译结果按图片内容哈希进程内缓存（永不落盘）。
-- 启动时打印一行摘要——路由 id、被包装的提供商、VLM 模型、端点、超时、maxTokens、key 来源与降级列表（key 本身从不打印），外加标明当前端点的 PRIVACY NOTICE。
-- 测试：11 个单测，GitHub Actions 在 Node 22/24 上运行。
+- 启动时打印一行摘要——路由 id、被包装的提供商、VLM 模型、端点、超时、maxTokens、key 来源与降级列表（key 本身从不打印），外加 PRIVACY NOTICE 和 Ollama 探测结果。
+- 测试：14 个单测，GitHub Actions 在 Node 22/24 上运行（含防卡死快速失败、冷却跳过、Ollama 探测用例）。
+
+## 排障
+
+| 现象 | 原因与解决 |
+|---|---|
+| 明明导出了 `VISION_API_KEY` 仍报 `skipped — no API key` | Windows 在 explorer.exe 里缓存环境变量，运行中的 dsh 读不到新值。把 `apiKey` 直写进插件配置，重启 dsh |
+| 安装时报 `Ignored build scripts: dsh-vision-proxy, sharp` | pnpm ≥ 10 默认拦截依赖构建脚本。在 profile 的 `pnpm-workspace.yaml` 加 `allowBuilds: {dsh-vision-proxy: true, sharp: true}`，然后重跑安装 |
+| 匿名端点报 `all N vision model(s) failed … rate_limit` | 匿名免费档限速极严且可能挂起。配置 key 或改用本地 Ollama |
+| 新装无 key 时约 20 秒后失败 | 没有 key 也没有本地 Ollama——这是预期的快速失败路径。安装 Ollama 或配置 key |
+| npm 官方源下载慢 | 使用 `--registry=https://registry.npmmirror.com`（参数转发给 pnpm） |
 
 ## 隐私
 
-转译会把图片字节（base64，HTTPS）发送到配置的 VLM 端点——**图片数据会离开你的机器**，除非 `baseURL` 指向本地服务（如 Ollama）。默认无 key 时：OVHcloud 匿名端点；有 key 时：阿里云百炼。除 harness 自身的附件存储外不持久化任何东西。敏感图片请使用自己的端点或本地模型——或者不安装本插件。
+转译会把图片字节（base64，HTTPS）发送到配置的 VLM 端点——**图片数据会离开你的机器**，除非 `baseURL` 指向本地服务（如 Ollama）。除 harness 自身的附件存储外不持久化任何东西。敏感图片请使用自己的端点或本地模型——或者不安装本插件。
 
 ## 实现原理（给插件开发者）
 

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import * as plugin from '../lib/index.js';
 
-const { classifyHttpError, parseRetryAfter, resolveApiKey, transcribeWithFallback, transcribeImage, transcribeRequest, hasImage, maybeDownscale } = plugin._test;
+const { classifyHttpError, parseRetryAfter, resolveApiKey, transcribeWithFallback, transcribeImage, transcribeRequest, hasImage, maybeDownscale, detectLocalOllama } = plugin._test;
 
 const imgBytes = Buffer.from('fake-image-bytes-for-hash-test');
 const ref = { attachmentId: 'att-1', mediaType: 'image/png' };
@@ -121,8 +121,45 @@ test('Config schema: defaults and fallback entries', () => {
     assert.equal(c.maxTokens, 4096);
     assert.equal(c.timeoutMs, 120000);
     assert.equal(c.maxImagePixels, 4_000_000);
+    assert.equal(c.autoLocalOllama, true);
     assert.equal(c.fallbackModels.length, 1);
     assert.equal(c.fallbackModels[0].baseURL, undefined); // absent keys stay absent
+});
+
+test('anonymous 429 fails fast without retry', async () => {
+    const calls = makeFetchMock(async () => res(429, '{"error":"rate limit"}', { 'retry-after': '1' }));
+    const t0 = Date.now();
+    await assert.rejects(
+        transcribeRequest(ctx, { baseURL: 'https://anon', model: 'm', apiKey: '', maxTokens: 10, timeoutMs: 5000, anonymous: true }, 'image/png', imgBytes),
+        (err) => err.message.includes('rate_limit') && err.message.includes('not retried'),
+    );
+    assert.equal(calls.length, 1); // no Retry-After sleep for anonymous endpoints
+    assert.ok(Date.now() - t0 < 800); // fast failure, never a stall
+});
+
+test('cooldown: an endpoint that just hit 429 is skipped on the next call', async () => {
+    const calls = makeFetchMock(async () => res(429, '{"error":"rate limit"}'));
+    const resolved = { baseURL: 'https://flaky', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0 };
+    const cooldowns = new Map();
+    await assert.rejects(transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), cooldowns));
+    assert.ok(cooldowns.get('https://flaky') > Date.now()); // cooldown armed
+    await assert.rejects(
+        transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), cooldowns),
+        (err) => err.message.includes('cooling down'),
+    );
+    assert.equal(calls.length, 1); // second call never reached the network
+});
+
+test('detectLocalOllama: picks a vision model, honors preferred, fails to null', async () => {
+    const fetchImpl = async () => res(200, JSON.stringify({ data: [{ id: 'llama3.2' }, { id: 'qwen3-vl:4b' }] }));
+    const picked = await detectLocalOllama(fetchImpl, 'http://localhost:11434/v1', 1500, '');
+    assert.equal(picked.model, 'qwen3-vl:4b');
+    const preferred = await detectLocalOllama(fetchImpl, 'http://localhost:11434/v1', 1500, 'llama3.2');
+    assert.equal(preferred.model, 'llama3.2');
+    const broken = await detectLocalOllama(async () => res(500, 'boom'), 'http://localhost:11434/v1', 1500, '');
+    assert.equal(broken, null);
+    const empty = await detectLocalOllama(async () => res(200, JSON.stringify({ data: [] })), 'http://localhost:11434/v1', 1500, '');
+    assert.equal(empty, null);
 });
 
 test('maybeDownscale: disabled, small files and failure all pass through', async () => {
