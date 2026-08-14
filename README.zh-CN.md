@@ -5,6 +5,7 @@
 **保持 DeepSeek 作为对话大脑，图片照样直接发。** 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 打造：GUI 附加图片自动转译，纯文本 DeepSeek 也能识图。
 
 <p align="center">
+  <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="awesome · DSH plugin" /></a>
   <a href="https://www.npmjs.com/package/dsh-vision-proxy"><img src="https://img.shields.io/npm/v/dsh-vision-proxy?style=flat-square" alt="npm version" /></a>
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy/actions/workflows/ci.yml"><img src="https://github.com/Flyvhidbwo/dsh-vision-proxy/actions/workflows/ci.yml/badge.svg" alt="CI (Node 22/24)" /></a>
   <img src="https://img.shields.io/badge/tests-14%20passed-2EA44F?style=flat-square" alt="14 项测试通过" />
@@ -32,7 +33,7 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 - **多模型、多厂商**。任何 OpenAI 兼容 VLM 端点都行——百炼/Qwen、QwenCloud 国际站、智谱、OpenRouter、本地 Ollama、或你自己的端点。每条 `fallbackModels` 都可以带**各自独立的** `baseURL`/`model`，一个安装即可串联多家。
 - **零配置本地路径**。`autoLocalOllama`（默认开）启动时探测 `http://localhost:11434`，检测到 Ollama 就自动加入降级链——图片不出本机，免 key 免注册。
 - **快速且明确的失败**。没有 key 也没有本地 Ollama 时，转译在几秒内失败并给出可操作指引（配置 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 或安装 Ollama）——绝不静默卡住。
-- **有 key 自动提速**。导出 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 后自动走付费快速通道（百炼 `qwen3.7-flash`——快、便宜、不限速）；没有 key 的条目会被**跳过**而不是失败。
+- **有 key 自动提速**。导出 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 后自动走你配置的付费端点（默认百炼 `qwen3.7-flash`——快、便宜、不限速；百炼/QwenCloud/智谱/OpenRouter 或任意 OpenAI 兼容端点均可）；没有 key 的条目会被**跳过**而不是失败。
 - **安装时一问式确认**。`postinstall` 询问你是否有 VLM API key。非交互环境自动跳过，安装永不卡死。启动时打印 PRIVACY NOTICE 标明当前使用的端点。
 - **降级链 + 错误分类**。`rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http` 分类给出可操作提示。
 - **内容哈希缓存**。转译结果按图片字节的 SHA-256 缓存（进程内，上限 200）——同一张图每个进程最多转译一次，重新附加或换对话也命中。
