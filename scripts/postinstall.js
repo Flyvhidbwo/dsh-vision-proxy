@@ -32,6 +32,7 @@ async function main() {
         // Non-interactive (CI, scripts, package managers that don't attach a TTY):
         // never hang the install — free default applies.
         printNoKey();
+        console.log('dsh-vision-proxy: 安装完成 —— 重启 dsh 后生效 / install done — restart dsh to activate.');
         return;
     }
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -44,6 +45,7 @@ async function main() {
     } else {
         printNoKey();
     }
+    console.log('dsh-vision-proxy: 安装完成 —— 重启 dsh 后生效 / install done — restart dsh to activate.');
 }
 
 main().catch((error) => {

@@ -101,23 +101,25 @@ Two autonomous paths are covered: the `view_image` tool (any route, file paths &
 
 ## Configuration
 
-Bundle defaults (override in your profile's `cordis.patch.yml`):
+The bundle already ships sensible defaults (see the strategy above) — you normally don't need to configure anything. To override them in your profile, use an **id-targeted override**, NOT an `insert` (see the warning below):
 
 ```yaml
-- insert:
-    - id: dsh-vision-proxy
-      name: 'dsh-vision-proxy'
-      config:
-        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-        apiKey: ''            # or export VISION_API_KEY / DASHSCOPE_API_KEY
-        model: qwen3.7-flash
-        maxTokens: 4096
-        timeoutMs: 120000     # anonymous endpoints are hard-capped at 20 s anyway
-        maxImagePixels: 4000000
-        marker: '[图片转译]'
-        autoLocalOllama: true
-        fallbackModels: []    # add your own {model, baseURL, apiKey?, anonymous?, timeoutMs?}
+# $DSH_HOME/profiles/web/cordis.patch.yml — user-layer override example
+- id: dsh-vision-proxy
+  name: 'dsh-vision-proxy'
+  config:
+    baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+    apiKey: 'sk-…'          # or leave '' to read env vars (writing it here is the reliable way on Windows)
+    model: qwen3.7-flash
+    maxTokens: 4096
+    timeoutMs: 120000       # anonymous endpoints are hard-capped at 20 s anyway
+    maxImagePixels: 4000000
+    marker: '[图片转译]'
+    autoLocalOllama: true
+    fallbackModels: []      # add your own {model, baseURL, apiKey?, anonymous?, timeoutMs?}
 ```
+
+> ⚠️ **Do NOT write this as `- insert: [{id: dsh-vision-proxy, …}]`.** In dsh's patch semantics an `insert` **appends** entries to the list — the bundle's own entry and yours (same id) would both be instantiated, registering the `deepseek-vision` adapter **twice** (undefined behavior). A top-level `- id:` entry targets the existing row and **replaces its whole `config`**; keys you omit fall back to the plugin schema's `.default()` values (e.g. `maxTokens=4096`, `timeoutMs=120000`, `autoLocalOllama=true`), so writing only `apiKey`/`model` also works.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -135,7 +137,17 @@ Bundle defaults (override in your profile's `cordis.patch.yml`):
 | `localOllamaModel` | `''` | Ollama model id; empty picks the first vision-capable model the local Ollama reports |
 | `fallbackModels` | `[]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry may point at a **different provider**; keyless non-anonymous entries are skipped |
 
-> **About API keys on Windows**: `dsh --profile <name> --dump-config` prints the composed config as-is (so a key in `cordis.patch.yml` shows in plaintext dumps), but environment variables set after a process started (explorer.exe caches them) may never reach a running dsh. If you see `skipped — no API key` despite having exported the key, **write `apiKey` directly into the plugin config** — it is the only reliable path on Windows.
+> **About API keys on Windows**: `dsh --profile <name> --dump-config` prints the composed config as-is (so a key in `cordis.patch.yml` shows in plaintext dumps), but environment variables set after a process started (explorer.exe caches them) may never reach a running dsh. If you see `skipped — no API key` despite having exported the key, **write `apiKey` directly into the plugin config** — it is the only reliable path on Windows. (Note: dsh rc.6 does NOT load `.env` files, so that is not an alternative.)
+
+## Verify the install
+
+```sh
+dsh --profile web --dump-config | grep -A3 dsh-vision-proxy   # exactly ONE entry (note: dumps config in plaintext, key included)
+```
+
+1. Restart `dsh web` → the model picker shows **DeepSeek + 自动识图**.
+2. Paste an image into a conversation → you should see the `[图片转译]` marker followed by DeepSeek's answer.
+3. With no key and no local Ollama, the turn should fail **fast** (seconds) with the guidance message — that is the intended no-hang behavior.
 
 ## Behavior notes
 
@@ -145,6 +157,7 @@ Bundle defaults (override in your profile's `cordis.patch.yml`):
 - Transcription results are cached in-process by image content hash (never persisted).
 - On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint, timeout, maxTokens, apiKey source and fallback list (the key itself is never logged), plus a PRIVACY NOTICE and a local-Ollama detection line.
 - Tested: 14 unit tests on Node 22 and 24 via GitHub Actions (incl. no-hang fast-fail, cooldown skip, and Ollama detection).
+- Transcription quality: dense UI screenshots may lose small text details — that is the vision model's capability ceiling, not a plugin bug. For OCR-heavy work, use a stronger model (e.g. `qwen3-vl-plus`) or raise `maxTokens`.
 
 ## Troubleshooting
 
@@ -152,6 +165,7 @@ Bundle defaults (override in your profile's `cordis.patch.yml`):
 |---|---|
 | `skipped — no API key` despite exporting `VISION_API_KEY` | Windows caches environment variables in explorer.exe; the running dsh never saw them. Write `apiKey` directly into the plugin config, then restart dsh |
 | `Ignored build scripts: dsh-vision-proxy, sharp` on install | pnpm ≥ 10 blocks dependency build scripts. Add `allowBuilds: {dsh-vision-proxy: true, sharp: true}` to the profile's `pnpm-workspace.yaml`, then re-run the install |
+| `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` on a fresh release day | pnpm 11 defaults `minimumReleaseAge` to 1 day (supply-chain policy). Add `minimumReleaseAge: 0` to the profile's `pnpm-workspace.yaml`, or pass `--config.minimum-release-age=0` to `dsh plugin add`, then re-run |
 | `all N vision model(s) failed … rate_limit` on an anonymous endpoint | Anonymous free tiers are strictly rate-limited and may hang. Configure a key or use local Ollama |
 | Turn stalls ~20 s then fails on a fresh install with no key | No key and no local Ollama — that is the intended fast-fail path. Install Ollama or add a key |
 | Slow downloads from registry.npmjs.org | Use `--registry=https://registry.npmmirror.com` (forwarded to pnpm) |
