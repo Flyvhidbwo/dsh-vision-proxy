@@ -81,11 +81,18 @@ Config lives in the plugin row (bundle default below; override in your profile's
       name: 'dsh-vision-proxy'
       config:
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-        apiKey: ''            # leave empty to read environment variables
+        apiKey: ''            # leave empty to read environment variables — or no key at all (see below)
         model: qwen3.7-flash
         maxTokens: 2048
         timeoutMs: 60000
         marker: '[图片转译]'
+        # Fallback chain: tried in order when the main model fails. The default
+        # ships with a registration-free anonymous endpoint (OVHcloud, 2 req/min/IP),
+        # so a fresh install works with ZERO API keys — slowly but surely.
+        fallbackModels:
+          - model: Qwen2.5-VL-72B-Instruct
+            baseURL: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
+            anonymous: true
 ```
 
 | Key | Default | Meaning |
@@ -98,6 +105,7 @@ Config lives in the plugin row (bundle default below; override in your profile's
 | `maxTokens` | `2048` | VLM output cap |
 | `timeoutMs` | `60000` | VLM request timeout |
 | `marker` | `[图片转译]` | Marker prepended to each transcription |
+| `fallbackModels` | `[OVH anonymous]` | Ordered fallback list `{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` — each entry inherits the main config unless overridden; `anonymous: true` endpoints need no key |
 
 ### Overriding in your profile
 
@@ -121,16 +129,18 @@ Config lives in the plugin row (bundle default below; override in your profile's
 
 - **Qwen / DashScope (China)**: keep the default `baseURL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`). Keys from [platform.qianwenai.com](https://platform.qianwenai.com) — general API keys are `sk-ws-…`, Token Plan keys are `sk-sp-…` — or from [bailian.console.aliyun.com](https://bailian.console.aliyun.com) (`sk-…`). `qwen3.7-flash` is multimodal and cheap.
 - **QwenCloud (international)**: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`.
-- **Zhipu**: `https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash` (free tier available).
+- **Zhipu**: `https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash` (free tier — still needs a (free) Zhipu API key).
+- **OVHcloud anonymous (free, no key)**: `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1` + `Qwen2.5-VL-72B-Instruct` with `anonymous: true` — registration-free, 2 requests/min/IP, best-effort. This is the built-in last-resort fallback.
 - **Local Ollama**: `http://localhost:11434/v1` + any vision model, no key needed.
 
 ## Behavior notes
 
 - Only messages containing image blocks are touched; plain-text conversations hit DeepSeek with zero overhead.
-- Transcription is cached per `attachmentId` (in-process, capped at 100), so each image is transcribed at most once per process.
+- **Fallback chain**: when the main model fails (rate limit, quota, auth, network…), `fallbackModels` entries are tried in order; the request only fails after all of them failed, with one error listing every attempt.
+- **Content-hash cache**: transcriptions are cached by the SHA-256 of the image bytes (in-process, capped at 200), so the same image — even re-attached under a new attachment id or in another conversation — is transcribed at most once per process.
+- **Classified errors**: failed VLM responses are classified (`rate_limit` / `quota` / `auth` / `region` / `model_not_found` / `context_too_large` / `http`) and the error carries an actionable hint; HTTP 429 honors `Retry-After` once (capped at 15 s) before giving up.
 - `read_image` also works on this route (its capability gate reads the same model info).
-- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint and apiKey source (never the key itself). Check it to confirm the active VLM before sending images.
-- If the VLM fails (network / quota / missing key), the request fails with a clear message instead of silently dropping the image; on 401/403 the error adds a hint about checking the key format.
+- On startup the plugin logs a one-line summary — route id, wrapped provider, VLM model, endpoint, apiKey source and fallback list (the key itself is never logged). Check it to confirm the active VLM before sending images.
 
 ## How it works (for plugin developers)
 

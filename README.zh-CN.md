@@ -81,11 +81,17 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
       name: 'dsh-vision-proxy'
       config:
         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-        apiKey: ''            # 留空则读环境变量
+        apiKey: ''            # 留空则读环境变量；完全没有 key 也能用（见下方说明）
         model: qwen3.7-flash
         maxTokens: 2048
         timeoutMs: 60000
         marker: '[图片转译]'
+        # 降级链：主模型失败时依次尝试；默认最后兜底是 OVHcloud 匿名端点
+        # （免注册免 key，限速 2 次/分/IP）——新装零配置、无 key 也能识图（慢）。
+        fallbackModels:
+          - model: Qwen2.5-VL-72B-Instruct
+            baseURL: https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
+            anonymous: true
 ```
 
 | 键 | 默认值 | 含义 |
@@ -98,6 +104,7 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 | `maxTokens` | `2048` | VLM 输出上限 |
 | `timeoutMs` | `60000` | VLM 请求超时 |
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
+| `fallbackModels` | `[OVH 匿名]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}` 数组，按顺序尝试；未写的字段继承主配置；`anonymous: true` 的端点无需 key |
 
 ### 在 profile 中覆盖
 
@@ -121,16 +128,18 @@ dsh plugin --profile web add github:Flyvhidbwo/dsh-vision-proxy
 
 - **千问 / DashScope（国内）**：保持默认 `baseURL`（`https://dashscope.aliyuncs.com/compatible-mode/v1`）。密钥来自 [platform.qianwenai.com](https://platform.qianwenai.com)（通用 API Key 为 `sk-ws-…` 格式，Token Plan 为 `sk-sp-…` 格式），或 [bailian.console.aliyun.com](https://bailian.console.aliyun.com)（`sk-…` 格式）。`qwen3.7-flash` 多模态且便宜。
 - **QwenCloud（国际版）**：`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`。
-- **智谱**：`https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash`（有免费档）。
+- **智谱**：`https://open.bigmodel.cn/api/paas/v4` + `glm-4.6v-flash`（免费档，但**仍需免费注册申请智谱 key**）。
+- **OVHcloud 匿名（免费，免 key）**：`https://oai.endpoints.kepler.ai.cloud.ovh.net/v1` + `Qwen2.5-VL-72B-Instruct` + `anonymous: true` —— 无需注册，限速 2 次/分/IP，尽力而为。这是内置的最后兜底。
 - **本地 Ollama**：`http://localhost:11434/v1` + 任意视觉模型，无需密钥。
 
 ## 行为说明
 
 - 只有含图片块的消息才会被处理；纯文本对话零开销直达 DeepSeek。
-- 转译结果按 `attachmentId` 缓存（进程内，上限 100 条），同一张图每个进程最多转译一次。
+- **降级链**：主模型失败（限流/额度/鉴权/网络…）时按 `fallbackModels` 顺序依次尝试，全部失败才报错，错误信息会列出每次尝试。
+- **内容哈希缓存**：转译结果按图片字节的 SHA-256 缓存（进程内，上限 200 条）——同一张图即使换了 attachmentId 或换了会话，每个进程也只转译一次。
+- **错误分类**：VLM 失败按类型分类（限流 / 额度 / 鉴权 / 区域 / 模型不存在 / 上下文超限 / HTTP），报错附带可操作建议；HTTP 429 会按 `Retry-After` 自动重试一次（上限 15 秒）。
 - `read_image` 工具在该路由下同样可用（其能力门禁读取的是同一份模型信息）。
-- 启动时插件会打印一行摘要日志——路由 id、被包装的 provider、VLM 模型、端点和 apiKey 来源（永远不会打印密钥本身）。发图前可以先看这行确认当前生效的 VLM。
-- 若 VLM 失败（网络 / 额度 / 缺密钥），请求会以明确报错失败，而不是静默丢弃图片；401/403 时错误信息里会附上核对密钥格式的提示。
+- 启动时插件会打印一行摘要日志——路由 id、被包装的 provider、VLM 模型、端点、apiKey 来源和降级列表（永远不会打印密钥本身）。发图前可以先看这行确认当前生效的 VLM。
 
 ## 实现原理（给插件开发者）
 
