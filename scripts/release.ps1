@@ -76,8 +76,10 @@ if (-not $SkipPush) {
         git tag -d "v$newVersion"
         Fail "push failed - bump rolled back (v$newVersion); fix connectivity and re-run"
     }
-    git push origin --tags
-    if ($LASTEXITCODE -ne 0) { Fail "tag push failed - run 'git push origin --tags' manually" }
+    # Push only the new tag: a bare `git push --tags` would also try to push
+    # stale local tags and get rejected.
+    git push origin "refs/tags/v$newVersion"
+    if ($LASTEXITCODE -ne 0) { Fail "tag push failed - run 'git push origin refs/tags/v$newVersion' manually" }
 }
 
 # --- publish ---------------------------------------------------------------
