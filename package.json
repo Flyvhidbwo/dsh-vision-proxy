@@ -1,6 +1,6 @@
 {
   "name": "dsh-vision-proxy",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness: a deepseek-vision provider route that transcribes attached images to text via any OpenAI-compatible VLM before delegating to the text-only DeepSeek adapter. Paid fast path with a key (DashScope/Zhipu/OpenRouter...), zero-config local Ollama auto-detection, and no hangs — anonymous endpoints are capped at 20s and fail fast with guidance.",
   "private": false,
   "type": "module",
@@ -9,7 +9,7 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "README.zh-CN.md",
+    "README.en-US.md",
     "LICENSE",
     "scripts",
     "assets"
