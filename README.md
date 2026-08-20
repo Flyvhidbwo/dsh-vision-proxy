@@ -144,6 +144,7 @@ bundle 已自带合理的默认配置（见上方策略说明），一般无需�
 | `timeoutMs` | `120000` | VLM 请求超时（匿名端点无论如何都被强制 20s 上限） |
 | `maxImagePixels` | `4000000` | 超过该像素数的图片转译前自动降采样（装有 `sharp` 时；0 关闭） |
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
+| `failureMode` | `placeholder` | 全部 VLM 失败时的行为：`placeholder`（默认）插入 `[图片转译失败: 原因]` 文本并继续对话——死端点不会毒化会话；`error` 则整轮失败（旧行为） |
 | `autoLocalOllama` | `true` | 启动时探测 `http://localhost:11434`；检测到则前置进降级链 |
 | `localOllamaModel` | `''` | 指定 Ollama 模型 id；留空自动选本地 Ollama 报告的第一个视觉模型 |
 | `fallbackModels` | `[]` | 降级链：`{model, baseURL?, apiKey?, anonymous?, timeoutMs?}`，每条可指向**不同厂商**；无 key 的非匿名条目自动跳过 |
@@ -164,10 +165,12 @@ dsh --profile web --dump-config | grep -A3 dsh-vision-proxy   # 应恰好一个�
 
 - 只有含图片块的消息才会被处理；纯文本对话零开销直达 DeepSeek。
 - 匿名端点：20 秒硬超时上限、HTTP 429 立即失败（不重试）、失败后触发 60 秒端点冷却——连发图片不会反复踩坏端点。
-- 全部链路条目都失败才报错，错误会列出每一次尝试并附可操作指引。
+- **网络层失败（fetch failed / 连接被拒等）同样进入 60 秒冷却**，死端点不会每轮重试。
+- **会话永不中毒**（`failureMode: placeholder`，默认）：某张图全部 VLM 失败时插入 `[图片转译失败: 原因]` 占位文本并继续对话；失败的图片按内容哈希记忆 60 秒，期间不再发起网络请求。历史里有过图片的会话，即使 VLM 挂掉也能继续纯文字对话。
+- 全部链路条目都失败才报错（`failureMode: error` 时），错误会列出每一次尝试并附可操作指引。
 - 转译结果按图片内容哈希进程内缓存（永不落盘）。
-- 启动时打印一行摘要——路由 id、被包装的提供商、VLM 模型、端点、超时、maxTokens、key 来源与降级列表（key 本身从不打印），外加 PRIVACY NOTICE 和 Ollama 探测结果。
-- 测试：14 个单测，GitHub Actions 在 Node 22/24 上运行（含防卡死快速失败、冷却跳过、Ollama 探测用例）。
+- 启动时打印一行摘要——路由 id、被包装的提供商、VLM 模型、端点、超时、maxTokens、failureMode、key 来源与降级列表（key 本身从不打印），外加 PRIVACY NOTICE 和 Ollama 探测结果。
+- 测试：16 个单测，GitHub Actions 在 Node 22/24 上运行（含防卡死快速失败、冷却跳过、网络失败冷却、占位模式保活用例）。
 - 转译质量：密集 UI 截图可能丢失小字细节——这是视觉模型的能力上限，不是插件 bug。OCR 重度场景建议换更强模型（如 `qwen3-vl-plus`）或调大 `maxTokens`。
 
 ## 排障

@@ -78,9 +78,9 @@ test('fallback chain: primary fails, fallback succeeds', async () => {
     assert.equal(text, 'from fallback');
 });
 
-test('fallback chain: all fail → combined classified error', async () => {
+test('fallback chain: all fail → combined classified error (failureMode "error")', async () => {
     makeFetchMock(async () => res(401, '{"error":"bad key"}'));
-    const resolved = { baseURL: 'https://a', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0 };
+    const resolved = { baseURL: 'https://a', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'error' };
     const fallbacks = [{ baseURL: 'https://b', model: 'fb', apiKey: 'k', anonymous: false, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
     await assert.rejects(
         transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map()),
@@ -122,6 +122,7 @@ test('Config schema: defaults and fallback entries', () => {
     assert.equal(c.timeoutMs, 120000);
     assert.equal(c.maxImagePixels, 4_000_000);
     assert.equal(c.autoLocalOllama, true);
+    assert.equal(c.failureMode, 'placeholder');
     assert.equal(c.fallbackModels.length, 1);
     assert.equal(c.fallbackModels[0].baseURL, undefined); // absent keys stay absent
 });
@@ -139,7 +140,7 @@ test('anonymous 429 fails fast without retry', async () => {
 
 test('cooldown: an endpoint that just hit 429 is skipped on the next call', async () => {
     const calls = makeFetchMock(async () => res(429, '{"error":"rate limit"}'));
-    const resolved = { baseURL: 'https://flaky', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0 };
+    const resolved = { baseURL: 'https://flaky', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'error' };
     const cooldowns = new Map();
     await assert.rejects(transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), cooldowns));
     assert.ok(cooldowns.get('https://flaky') > Date.now()); // cooldown armed
@@ -148,6 +149,34 @@ test('cooldown: an endpoint that just hit 429 is skipped on the next call', asyn
         (err) => err.message.includes('cooling down'),
     );
     assert.equal(calls.length, 1); // second call never reached the network
+});
+
+test('network failure cools the endpoint down; placeholder mode keeps the session alive', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; throw new TypeError('fetch failed'); };
+    const resolved = { baseURL: 'https://dead', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'placeholder', marker: '[X]' };
+    const cache = new Map();
+    const cooldowns = new Map();
+    // first turn: network error → placeholder, no throw
+    const r1 = await transcribeWithFallback(ctx, resolved, [], ref, undefined, cache, cooldowns);
+    assert.ok(r1.text.includes('[图片转译失败:'), r1.text);
+    assert.equal(calls, 1);
+    assert.ok(cooldowns.get('https://dead') > Date.now()); // transport failure armed the cooldown
+    // second turn (different attachment id, same bytes): failure marker + cooldown → zero network
+    const r2 = await transcribeWithFallback(ctx, resolved, [], { ...ref, attachmentId: 'att-2' }, undefined, cache, cooldowns);
+    assert.ok(r2.text.includes('[图片转译失败:'), r2.text);
+    assert.equal(calls, 1); // the dead endpoint is never hammered again within the cooldown
+});
+
+test('failureMode "error" still fails the whole turn', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; throw new TypeError('fetch failed'); };
+    const resolved = { baseURL: 'https://dead', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'error', marker: '[X]' };
+    await assert.rejects(
+        transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), new Map()),
+        (err) => err.message.includes('all 1 vision model(s) failed'),
+    );
+    assert.equal(calls, 1);
 });
 
 test('detectLocalOllama: picks a vision model, honors preferred, fails to null', async () => {
