@@ -1,5 +1,3 @@
-> 📦 **已归档 / 最终版 0.3.1** —— 本插件停止维护（2026-08-22 起不再更新）。代码保留供参考与使用；dsh 0.1.1 起原生支持多模态，官方视觉模型（DeepSeek-V4-Flash-Vision-Exp）直接发图即可。
-
 # dsh-vision-proxy
 
 [English](README.en-US.md) | [简体中文](README.md)

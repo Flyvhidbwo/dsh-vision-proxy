@@ -1,5 +1,3 @@
-> 📦 **ARCHIVED — final release 0.3.1** — maintenance stopped (no further updates). Code kept for reference/use; since dsh 0.1.1, official vision models (DeepSeek-V4-Flash-Vision-Exp) accept images natively.
-
 # dsh-vision-proxy
 
 [English](README.en-US.md) | [绠€浣撲腑鏂嘳(README.md)
