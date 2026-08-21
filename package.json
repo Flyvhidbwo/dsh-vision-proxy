@@ -1,70 +1,70 @@
 {
-    "name":  "dsh-vision-proxy",
-    "version":  "0.2.6",
-    "description":  "DeepSeek brain + automatic image transcription for DeepSeek Harness: a deepseek-vision provider route that transcribes attached images to text via any OpenAI-compatible VLM before delegating to the text-only DeepSeek adapter. Paid fast path with a key (DashScope/Zhipu/OpenRouter...), zero-config local Ollama auto-detection, and no hangs 鈥?anonymous endpoints are capped at 20s and fail fast with guidance.",
-    "private":  false,
-    "type":  "module",
-    "main":  "lib/index.js",
-    "files":  [
-                  "lib",
-                  "cordis.patch.yml",
-                  "README.md",
-                  "README.en-US.md",
-                  "LICENSE",
-                  "scripts",
-                  "assets"
-              ],
-    "license":  "MIT",
-    "author":  {
-                   "name":  "Flyvhidbwo"
-               },
-    "repository":  {
-                       "type":  "git",
-                       "url":  "git+https://github.com/Flyvhidbwo/dsh-vision-proxy.git"
-                   },
-    "homepage":  "https://github.com/Flyvhidbwo/dsh-vision-proxy#readme",
-    "bugs":  {
-                 "url":  "https://github.com/Flyvhidbwo/dsh-vision-proxy/issues"
-             },
-    "publishConfig":  {
-                          "access":  "public"
-                      },
-    "engines":  {
-                    "node":  "\u003e=22.19.0",
-                    "dsh":  "\u003e=0.1.0-rc.6"
-                },
-    "dsh":  {
-                "bundle":  {
-                               "patch":  "./cordis.patch.yml"
-                           }
-            },
-    "dependencies":  {
-                         "schemastery":  "^3.18.0"
-                     },
-    "keywords":  [
-                     "deepseek-harness",
-                     "dsh",
-                     "dsh-plugin",
-                     "plugin",
-                     "vision",
-                     "multimodal",
-                     "image",
-                     "image-understanding",
-                     "ocr",
-                     "vlm",
-                     "qwen",
-                     "dashscope"
-                 ],
-    "optionalDependencies":  {
-                                 "sharp":  "^0.34.0"
-                             },
-    "scripts":  {
-                    "test":  "node --test \"tests/**/*.test.js\"",
-                    "postinstall":  "node scripts/postinstall.js"
-                },
-    "pnpm":  {
-                 "onlyBuiltDependencies":  [
-                                               "sharp"
-                                           ]
-             }
+  "name": "dsh-vision-proxy",
+  "version": "0.3.1",
+  "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness: a deepseek-vision provider route that transcribes attached images to text via any OpenAI-compatible VLM before delegating to the text-only DeepSeek adapter. Paid fast path with a key (DashScope/Zhipu/OpenRouter...), zero-config local Ollama auto-detection, and no hangs 鈥?anonymous endpoints are capped at 20s and fail fast with guidance.",
+  "private": false,
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en-US.md",
+    "LICENSE",
+    "scripts",
+    "assets"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Flyvhidbwo"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flyvhidbwo/dsh-vision-proxy.git"
+  },
+  "homepage": "https://github.com/Flyvhidbwo/dsh-vision-proxy#readme",
+  "bugs": {
+    "url": "https://github.com/Flyvhidbwo/dsh-vision-proxy/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.1.0-rc.6"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "schemastery": "^3.18.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "plugin",
+    "vision",
+    "multimodal",
+    "image",
+    "image-understanding",
+    "ocr",
+    "vlm",
+    "qwen",
+    "dashscope"
+  ],
+  "optionalDependencies": {
+    "sharp": "^0.34.0"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
+  }
 }

@@ -14,6 +14,8 @@
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
 </p>
 
+ > ⚠️ **Compatibility & positioning (Aug 2026)**: this plugin now supports dsh 0.1.1-rc.2 (adapter prepareCall contract). Since dsh 0.1.1, DeepSeek natively supports multimodal models (e.g. DeepSeek-V4-Flash-Vision-Exp) — **if you use an official vision model, just attach images, no plugin needed**. This plugin remains useful for: transcription bridging for non-multimodal models, local Ollama (images never leave the machine, free), or custom OpenAI-compatible VLM setups.
+
 ## Why this exists
 
 DeepSeek Harness natively gates image attachments on the selected model's declared `inputModalities`. DeepSeek's chat-completions line is text-only, so attaching an image with DeepSeek selected is rejected by design. Tool-based vision plugins exist, but **GUI image attachments still fail** with a text-only model.

@@ -14,6 +14,8 @@
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
 </p>
 
+> ⚠️ **兼容性与定位（2026-08）**：本插件已适配 dsh 0.1.1-rc.2（adapter prepareCall 接口）。dsh 0.1.1 起原生支持多模态（DeepSeek-V4-Flash-Vision-Exp 等官方视觉模型）——**如果你用官方视觉模型，直接发图即可，不需要本插件**。本插件适用于：非多模态模型的转译桥接、本地 Ollama（图片不出本机、免费）、或自定义 OpenAI 兼容 VLM 场景。
+
 ## 为什么需要它
 
 DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行图片附件。DeepSeek 的 chat-completions 线路是纯文本的，所以选中 DeepSeek 时附加图片会被原生拒绝。已有的视觉插件提供 `view_image` 等*工具*（适用于文件路径），但 **GUI 图片附件对纯文本模型依然失败**。

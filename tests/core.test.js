@@ -209,3 +209,63 @@ test('hasImage detects image blocks recursively', () => {
     assert.ok(hasImage([{ type: 'tool-result', content: [{ type: 'image' }] }]));
     assert.ok(!hasImage([{ type: 'text', text: 'x' }]));
 });
+
+// dsh >= 0.1.1-rc.2: the llm runtime calls adapter.prepareCall(provider, model, signal)
+// and dispatches through the returned `stream` entry point. Simulate that exact chain:
+// apply() registers the proxy → prepareCall → stream → inner.stream receives transcribed messages.
+test('adapter prepareCall contract (dsh >= 0.1.1-rc.2)', async () => {
+    const innerReceived = [];
+    const mockInner = {
+        providerRetryPolicy: () => undefined,
+        listModels: async () => [],
+        resolveModel: async (provider, model) => ({
+            provider, id: model, name: model, inputModalities: ['text'],
+            context: { contextWindow: 1000000 }, defaultMaxTokens: 4096,
+        }),
+        stream: async function* (options) {
+            innerReceived.push(options.messages);
+            yield { type: 'delta', text: 'ok' };
+        },
+    };
+    let registered = null;
+    const mockCtx = {
+        get: (name) => name === 'attachments'
+            ? { readImage: async (r) => ({ ref: { mediaType: 'image/png' }, data: imgBytes }) }
+            : undefined,
+        llm: {
+            registration: () => ({ adapter: mockInner }),
+            registerAdapter: (routes, adapter) => { registered = adapter; },
+        },
+        logger: { info: () => {}, warn: () => {}, error: () => {} },
+    };
+    // fetch mock: Ollama probe fails fast; VLM transcription succeeds.
+    makeFetchMock(async (url) => {
+        if (url.includes('/models')) return res(500, 'no ollama');
+        return res(200, okBody('transcribed via VLM'));
+    });
+    plugin.apply(mockCtx, { apiKey: 'test-key' });
+    assert.ok(registered, 'adapter registered');
+    assert.equal(typeof registered.prepareCall, 'function', 'prepareCall present on proxy');
+
+    const adapterCall = await registered.prepareCall('deepseek-vision', 'deepseek-v4-flash', undefined);
+    assert.ok(adapterCall.model.inputModalities.includes('image'), 'claims image modality');
+    assert.equal(typeof adapterCall.stream, 'function');
+
+    const messages = [{
+        role: 'user',
+        content: [
+            { type: 'text', text: 'look at this' },
+            { type: 'image', attachment: { attachmentId: 'att-1', mediaType: 'image/png' } },
+        ],
+    }];
+    const stream = adapterCall.stream({ provider: 'deepseek-vision', model: 'deepseek-v4-flash', messages });
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    assert.ok(chunks.some((c) => c.type === 'delta'));
+    assert.equal(innerReceived.length, 1, 'inner.stream dispatched once');
+    const sent = innerReceived[0][0].content;
+    const imageBlocks = sent.filter((b) => b.type === 'image');
+    assert.equal(imageBlocks.length, 0, 'image block transcribed away before inner');
+    assert.ok(sent.some((b) => b.type === 'text' && b.text.includes('图片转译')), 'marker present');
+    assert.ok(sent.some((b) => b.type === 'text' && b.text.includes('transcribed via VLM')), 'transcription text present');
+});
