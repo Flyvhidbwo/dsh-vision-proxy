@@ -1,7 +1,7 @@
 {
   "name": "dsh-vision-proxy",
   "version": "0.4.0",
-  "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness: a deepseek-vision provider route that transcribes attached images to text via any OpenAI-compatible VLM before delegating to the text-only DeepSeek adapter. Paid fast path with a key (DashScope/Zhipu/OpenRouter...), zero-config local Ollama auto-detection, and no hangs 鈥?anonymous endpoints are capped at 20s and fail fast with guidance.",
+  "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness: a deepseek-vision provider route that transcribes attached images to text before delegating to the text-only DeepSeek adapter. Official deepseek-v4-flash-vision-exp by default (a pure-text V4-Pro brain can see images), any OpenAI-compatible VLM or local Ollama as alternatives, never hangs.",
   "private": false,
   "type": "module",
   "main": "lib/index.js",
