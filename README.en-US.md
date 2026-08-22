@@ -56,15 +56,16 @@ One config (`baseURL` + `model`, optionally `apiKey`) covers every backend:
 
 > 鈿狅笍 **Anonymous third-party free tiers are NOT bundled as a default fallback.** In field testing, anonymous free endpoints (e.g. OVHcloud AI Endpoints) were strictly rate-limited AND occasionally hung without a response 鈥?as a default they just reproduce a broken experience. If you still want to point at one, add it yourself via `fallbackModels` with `anonymous: true` (the 20 s cap still applies).
 
-### Pricing (CNY, Alibaba Model Studio mainland, Aug 2026 reference)
+### Pricing (CNY, Alibaba Model Studio mainland + DeepSeek official, Aug 2026 reference)
 
-| Model | Input | Output | One 1080p screenshot (鈮?000 tokens) |
+| Model | Input | Output | One 1080p screenshot (≈2000 tokens) |
 |---|---|---|---|
-| qwen3-vl-flash | 楼0.15 / 1M tokens | 楼1.5 / 1M tokens | 鈮?楼0.0005 (0.05 fen) |
-| qwen3.7-flash | 楼0.2 / 1M tokens | 楼0.8 / 1M tokens | 鈮?楼0.001 (0.1 fen) |
-| Local Ollama | free | free | 楼0 (images never leave the machine) |
+| qwen3-vl-flash | ¥0.15 / 1M tokens | ¥1.5 / 1M tokens | ≈ ¥0.0005 (0.05 fen) |
+| qwen3.7-flash | ¥0.2 / 1M tokens | ¥0.8 / 1M tokens | ≈ ¥0.001 (0.1 fen) |
+| **deepseek-v4-flash-vision-exp** (official, default) | ¥3 / 1M (peak) · ¥1.5 (off-peak) | ¥9 / 1M (peak) · ¥4.5 (off-peak) | ≈ ¥0.01 (peak) / ¥0.005 (off-peak) |
+| Local Ollama | free | free | ¥0 (images never leave the machine) |
 
-> Images are billed by token (providers convert image resolution into tokens; a 1080p screenshot 鈮?2000 tokens). At the prices above **one image costs well under one li** (0.001 CNY); even heavy use (100 images/day) is only a few yuan a month. Local Ollama is completely free. Always check the console for live pricing.
+> Transcription prefers the official deepseek-v4-flash-vision-exp by default (peak hours 9:00-12:00 / 14:00-18:00 CN at full price, half-price otherwise; images convert to tokens by size, no per-image fee; about 1/3 of the V4-Pro tier price). Images are billed by token (a 1080p screenshot ≈ 2000 tokens). Even heavy use (100 images/day) is only a few yuan a month. Local Ollama is completely free. Always check provider consoles for live pricing.
 
 **Key resolution order**: config `apiKey` 鈫?`$VISION_API_KEY` 鈫?`$DASHSCOPE_API_KEY`. Anonymous endpoints (`anonymous: true`) and local hosts need no key; keyless non-anonymous entries are skipped automatically.
 
