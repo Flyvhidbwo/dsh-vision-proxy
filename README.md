@@ -14,7 +14,7 @@
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
 </p>
 
-> ⚠️ **兼容性与定位（2026-08）**：本插件已适配 dsh 0.1.1-rc.2（adapter prepareCall 接口）。dsh 0.1.1 起原生支持多模态（DeepSeek-V4-Flash-Vision-Exp 等官方视觉模型）——**如果你用官方视觉模型，直接发图即可，不需要本插件**。本插件适用于：非多模态模型的转译桥接、本地 Ollama（图片不出本机、免费）、或自定义 OpenAI 兼容 VLM 场景。
+> ⚠️ **兼容性与定位（2026-08）**：本插件已适配 dsh 0.1.1-rc.2（adapter prepareCall 接口）。dsh 0.1.1 起原生支持多模态（DeepSeek-V4-Flash-Vision-Exp 等官方视觉模型）——**如果你用官方视觉模型，直接发图即可，不需要本插件**。**DeepSeek-V4-Pro / 普通 Flash 仍是纯文本模型，识图靠本插件转译桥接**（官方仅 Flash-Vision-Exp 原生多模态）。插件适用于：Pro/文本模型识图、本地 Ollama（图片不出本机、免费）、自定义 OpenAI 兼容 VLM 场景。
 
 ## 为什么需要它
 
