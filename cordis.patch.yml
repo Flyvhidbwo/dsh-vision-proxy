@@ -3,7 +3,7 @@
 # dependency (e.g. `dsh plugin add dsh-vision-proxy`, or from the Web/Desktop
 # Settings → Plugins page).
 #
-# 默认策略（v0.5.2）：
+# 默认策略（v0.5.3）：
 # - source: deepseek（默认）→ 官方 deepseek-flash 识图，自动复用 DEEPSEEK_API_KEY
 #   与 https://api.deepseek.com，**零配置**；设置页只显示少量选项
 # - source: custom → 自定义 OpenAI 兼容 VLM 端点或本机 Ollama（设置页显示完整配置）
@@ -32,3 +32,4 @@
         autoLocalOllama: true
         abortWithSession: false           # 不因会话层取消而丢弃已完成的推理
         fallbackModels: []    # 可自行添加 {model, baseURL, apiKey?, anonymous?, timeoutMs?}
+

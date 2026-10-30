@@ -14,7 +14,7 @@
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
 </p>
 
-> ⚠️ **Compatibility & positioning (Oct 2026, v0.5.0)**: verified against **dsh 0.2.x** (desktop runtime 0.2.1-rc.3 and CLI 0.2.1-rc.5). The plugin also ships a **Settings → Vision proxy** page so everything is configurable in the UI, live, without restarting.
+> ⚠️ **Compatibility & positioning (Oct 2026, v0.5.3)**: supports **dsh 0.2.x** and is **verified against dsh 0.2.1-rc.5** (desktop runtime and CLI; the rc5 runtime's `dsh-llm` / `dsh-attachment` / settings and client-module files are byte-identical to the npm `0.2.1-rc.5` packages, so the contract surface is unchanged). **Settings → Vision proxy** offers the two-mode configuration (zero-config official `deepseek-flash`, or a custom VLM endpoint) and applies live without a restart.
 >
 > Since dsh 0.2.x, DeepSeek's natively multimodal models (`deepseek-flash`, `deepseek-v4-flash-vision-exp`, …) accept images directly — **you do not need this plugin for those**. The plugin covers the other half: **text-only models still cannot see images** (e.g. `deepseek-v4-pro`). It transcribes images to text before handing the conversation to them. Typical uses: a text-only Pro/Flash brain with eyes, local Ollama (images never leave the machine, free), any OpenAI-compatible VLM. **When the selected model already accepts images, images are passed through untranslated.**
 >
@@ -108,8 +108,9 @@ dsh plugin --profile desktop add dsh-vision-proxy   # re-run after approval
 
 ### Alternative installs (while npm publishing is temporarily unavailable)
 
-- **From GitHub**: `dsh plugin --profile desktop add github:Flyvhidbwo/dsh-vision-proxy`; in the desktop app use **Plugins → Add plugin → Git repository** with `github:Flyvhidbwo/dsh-vision-proxy` (installs the default branch with the latest fixes).
-- **From a local tarball**: grab a `.tgz` from the repository releases (or build one locally) and use **Plugins → Add plugin → Tarball**.
+- **From GitHub**: `dsh plugin --profile desktop add github:Flyvhidbwo/dsh-vision-proxy`; in the desktop app use **Plugins → Add plugin** and enter `github:Flyvhidbwo/dsh-vision-proxy` (installs the default branch with the latest fixes).
+- **From a local tarball**: the Add-plugin field is **plain text** (there is no file picker). Paste the absolute `.tgz` path, e.g. `C:\Users\<you>\Downloads\dsh-vision-proxy-0.5.3.tgz`; the plugin manager classifies an absolute `.tgz` path as a `tarball` (verified on rc5: `inspect` returns `kind: tarball`).
+- **From a local directory**: extract the `.tgz` into a directory and paste that absolute path instead (it is recorded as a `file:` link, so do not delete the directory afterwards).
 
 ## Live demo: a real GUI image turn
 

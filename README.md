@@ -14,7 +14,7 @@
   <a href="https://github.com/Flyvhidbwo/dsh-vision-proxy"><img src="https://img.shields.io/github/stars/Flyvhidbwo/dsh-vision-proxy?style=flat-square" alt="GitHub stars" /></a>
 </p>
 
-> ⚠️ **兼容性与定位（2026-10，v0.5.0）**：已适配 **dsh 0.2.x**（桌面端 0.2.1-rc.3 / CLI 0.2.1-rc.5 实测），并在 **设置 → 识图代理** 里提供可视化配置页（改动实时生效，无需重启）。
+> ⚠️ **兼容性与定位（2026-10，v0.5.3）**：已适配 **dsh 0.2.x**，并在 **dsh 0.2.1-rc.5 上完成适配验证**（桌面端与 CLI；rc5 运行时打包的 `dsh-llm` / `dsh-attachment` / 设置与客户端模块层文件与 npm `0.2.1-rc.5` 逐字节一致，契约面无变化）。**设置 → 识图代理** 提供两档可视化配置（官方 `deepseek-flash` 零配置 / 自定义 VLM 端点），改动实时生效、无需重启。
 >
 > dsh 0.2.x 起 DeepSeek 账号/官方视觉模型**原生支持图片**（如 `deepseek-flash`、`deepseek-v4-flash-vision-exp`）——**用原生视觉模型时不需要本插件**。本插件补的是另一半：**纯文本模型依然看不了图**（如 `deepseek-v4-pro`），插件把图片转译成文字后交给它们。插件适用于：Pro/文本模型识图、本地 Ollama（图片不出本机、免费）、自定义 OpenAI 兼容 VLM；**选中的模型本身支持图片时会自动直通，不再二次转译**。
 >
@@ -112,8 +112,9 @@ dsh plugin --profile desktop add dsh-vision-proxy   # 批准后重跑
 
 ### 备选安装方式（npm 暂时不可用时）
 
-- **从 GitHub 安装**：`dsh plugin --profile desktop add github:Flyvhidbwo/dsh-vision-proxy`；桌面端在「插件 → 添加插件 → Git 仓库」里填 `github:Flyvhidbwo/dsh-vision-proxy`。装到的是仓库默认分支（含最新修复）。
-- **从本地压缩包安装**：先在仓库 Releases 或本机拿到 `.tgz`，桌面端「插件 → 添加插件 → 压缩包」选择该文件即可。
+- **从 GitHub 安装**：`dsh plugin --profile desktop add github:Flyvhidbwo/dsh-vision-proxy`；桌面端在「插件 → 添加插件」里填 `github:Flyvhidbwo/dsh-vision-proxy`。装到的是仓库默认分支（含最新修复）。
+- **从本地压缩包安装**：桌面端「插件 → 添加插件」的输入框是**纯文本**（没有文件选择器）：把 `.tgz` 的**绝对路径**粘进去即可，例如 `C:\Users\<你>\Downloads\dsh-vision-proxy-0.5.3.tgz`。dsh 的 plugin-manager 会把绝对路径的 `.tgz` 识别为 `tarball` 类型（rc5 已确认 `inspect` 返回 `kind: tarball`）。
+- **从本地目录安装**：先把 `.tgz` 解压成目录，再把该目录的绝对路径粘进同一个输入框（依赖以 `file:` 链接方式记录，之后别删这个目录）。
 
 ## 现场演示：真实对话中的识图
 
