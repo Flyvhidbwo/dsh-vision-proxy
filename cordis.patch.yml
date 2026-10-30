@@ -3,12 +3,12 @@
 # dependency (e.g. `dsh plugin add dsh-vision-proxy`, or from the Web/Desktop
 # Settings → Plugins page).
 #
-# 默认策略（v0.5.0）：
-# - 有 DEEPSEEK_API_KEY（桌面端/Web 已登录即有）→ 内置官方视觉模型
-#   deepseek-v4-flash-vision-exp 转译（质量最好，无需额外 key）
-# - 有 VISION_API_KEY / DASHSCOPE_API_KEY 或写了 apiKey → 主模型走百炼 qwen3.7-flash
-# - 本机装有 Ollama（http://localhost:11434）→ 自动探测并加入降级链，图片不出本机
-# - 选中的模型本身支持图片（如 deepseek-v4-flash-vision-exp）→ 原生直通，不再转译
+# 默认策略（v0.5.2）：
+# - source: deepseek（默认）→ 官方 deepseek-flash 识图，自动复用 DEEPSEEK_API_KEY
+#   与 https://api.deepseek.com，**零配置**；设置页只显示少量选项
+# - source: custom → 自定义 OpenAI 兼容 VLM 端点或本机 Ollama（设置页显示完整配置）
+# - 本机装有 Ollama（http://localhost:11434）→ 自动探测并作为降级链末位，图片不出本机
+# - 选中的模型本身支持图片（如 deepseek-flash）→ 原生直通，不再转译
 # - 都没有 → 快速失败并给出明确指引（绝不卡死）
 # 注意：不再内置任何第三方匿名免费端点（实测限速严重且可能无响应）。
 
@@ -16,17 +16,18 @@
     - id: dsh-vision-proxy
       name: 'dsh-vision-proxy'
       config:
-        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-        apiKey: ''            # 留空则读环境变量；Windows 下环境变量变更可能不生效，直写这里最可靠
-        model: qwen3.7-flash
-        maxTokens: 8192       # 思考型 VLM 需要给 reasoning + 正式输出留出空间
+        source: deepseek                      # deepseek = 官方 deepseek-flash，零配置；custom = 自定义端点
+        deepseekVisionModel: deepseek-flash   # 官方识图模型
+        deepseekThinking: disabled            # 识图不需要思考链：直接给答案，省 token 更快
+        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1   # custom 模式用
+        apiKey: ''            # custom 模式用；留空则读环境变量（Windows 下直写最可靠）
+        model: qwen3.7-flash  # custom 模式用
+        maxTokens: 8192
         timeoutMs: 120000     # 公网匿名端点仍会被强制上限 20s；本机 Ollama 用满此值
         keepAlive: 30m        # 仅本机端点：Ollama 模型常驻，避免每张图重新加载权重
         maxImagePixels: 4000000
         marker: '[图片转译]'
         failureMode: placeholder
-        deepseekVision: true              # 优先用官方视觉模型转译
-        deepseekVisionModel: deepseek-v4-flash-vision-exp
         nativeVisionPassThrough: true     # 模型原生支持图片时不再二次转译
         autoLocalOllama: true
         abortWithSession: false           # 不因会话层取消而丢弃已完成的推理

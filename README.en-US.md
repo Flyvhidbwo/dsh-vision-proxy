@@ -35,7 +35,7 @@ user attaches image ──▶ deepseek-vision route ──▶ transcribe via VLM
 
 ## Features
 
-- **Settings page in the dsh UI.** Settings → **Vision proxy**: edit endpoint, model, timeouts, failure policy and more (15 fields). Saving writes the profile's `cordis.patch.yml` and applies to the **next turn, live**; secret fields only show "stored" and are never sent back to the browser.
+- **Two-mode settings page.** Settings → **Vision proxy**: the default "DeepSeek official vision" mode is zero-config (auto-uses `deepseek-flash` with your `DEEPSEEK_API_KEY` and `api.deepseek.com`) and shows nothing but the mode switch; switching to "Custom VLM endpoint" reveals the endpoint / model / timeout fields. Saving writes the profile's `cordis.patch.yml` and applies to the **next turn, live**; secret fields only show "stored" and are never sent back to the browser.
 - **Native-vision pass-through.** When the selected model declares image input (`deepseek-flash`, `deepseek-v4-flash-vision-exp`, …), images go straight through — no wasted VLM call and no loss of native quality.
 - **Inner-route discovery.** If the configured `innerProvider` is not registered, the plugin falls back to `deepseek-official` → `deepseek-account` → any registered route. An API-key profile and a signed-in-account profile both work out of the box.
 - **No hangs, ever.** *Public anonymous* endpoints are hard-capped at 20 s and HTTP 429 fails immediately (no useless `Retry-After` sleep); endpoints that just failed are cooled down for 60 s. **Loopback endpoints are exempt from that policy**: a cold Ollama load is legitimately slow, so the configured timeout applies and `keep_alive` keeps the model resident.
@@ -89,7 +89,7 @@ After a restart:
 2. **Settings → Vision proxy** edits the configuration (applies on the next turn, no restart; secrets are never echoed back);
 3. paste an image into any conversation.
 
-> Default strategy: transcribe with DeepSeek's official vision model (`deepseek-v4-flash-vision-exp`, reusing `DEEPSEEK_API_KEY`); otherwise use `VISION_API_KEY` / `DASHSCOPE_API_KEY` at DashScope; a local Ollama is appended automatically; **models that already accept images are passed through untranslated**.
+> **Default strategy (zero config)**: official `deepseek-flash` transcription that reuses your `DEEPSEEK_API_KEY` and `https://api.deepseek.com` — the settings page shows only this mode by default, nothing to fill in. Switch to "Custom VLM endpoint" on that page (DashScope / Zhipu / OpenRouter / local Ollama) to reveal the full configuration. A local Ollama is appended automatically as a safety net; **models that already accept images are passed through untranslated**.
 
 **pnpm ≥ 10 blocks dependency build scripts** — the first install exits non-zero with `Ignored build scripts: dsh-vision-proxy, sharp`. Approve both, then re-run the install:
 
@@ -154,8 +154,10 @@ A real conversation on the `deepseek-vision` route: the user pasted a sticker an
 | `marker` | `[图片转译]` | Prefix on every transcription |
 | `failureMode` | `placeholder` | On total failure: `placeholder` inserts `[图片转译失败: …]` and continues; `error` fails the turn |
 | `abortWithSession` | `false` | Abort a running transcription when the conversation is cancelled (off keeps finished inferences) |
-| `deepseekVision` | `true` | Prefer DeepSeek's official vision model for transcription |
-| `deepseekVisionModel` | `deepseek-v4-flash-vision-exp` | Model used for that transcription |
+| `source` | `deepseek` | Transcription source: `deepseek` (default: official `deepseek-flash` with your `DEEPSEEK_API_KEY` and `api.deepseek.com`, zero config) or `custom` (your endpoint / Ollama). Unset infers the mode so older configs keep working |
+| `deepseekVisionModel` | `deepseek-flash` | Official model used when `source` is `deepseek` |
+| `deepseekThinking` | `disabled` | Thinking policy for the official call: `disabled` answers directly (faster, fewer tokens); `adaptive` / `enabled` think first |
+| `deepseekVision` | — | Deprecated, kept for older configs: `false` is treated as `source: custom` |
 | `nativeVisionPassThrough` | `true` | Models that already accept images are passed straight through |
 | `autoLocalOllama` | `true` | Probe `http://localhost:11434` at startup (**restart**) |
 | `localOllamaModel` | `''` | Pin an Ollama model; empty picks the first vision-capable one |

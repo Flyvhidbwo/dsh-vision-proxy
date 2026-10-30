@@ -1,7 +1,7 @@
 {
   "name": "dsh-vision-proxy",
-  "version": "0.5.1",
-  "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness (dsh 0.2.x): a deepseek-vision provider route that transcribes attached images to text before delegating to the text-only DeepSeek adapter. Official deepseek-v4-flash-vision-exp by default (a pure-text V4-Pro brain can see images), any OpenAI-compatible VLM or local Ollama as alternatives, native-vision models pass through untouched, never hangs, and a 「识图代理」page in Settings configures it.",
+  "version": "0.5.2",
+  "description": "DeepSeek brain + automatic image transcription for DeepSeek Harness (dsh 0.2.x): a deepseek-vision provider route that transcribes attached images to text before delegating to the text-only DeepSeek adapter. Zero-config by default (official deepseek-flash with your DEEPSEEK_API_KEY), with any OpenAI-compatible VLM or local Ollama as a custom mode; native-vision models pass through untouched, never hangs, and a 「识图代理」page in Settings configures it.",
   "private": false,
   "type": "module",
   "main": "lib/index.js",

@@ -35,7 +35,7 @@ DeepSeek Harness 原生按模型声明的 `inputModalities` 决定是否放行�
 
 ## 特性
 
-- **设置页可视化配置**。dsh **设置 → 识图代理**：端点、模型、超时、失败策略等 15 个字段直接编辑，保存写入 profile 的 `cordis.patch.yml`，**后续对话立即生效，无需重启**；密钥字段只显示「已保存」，永不回显到浏览器。
+- **设置页两档模式**。dsh **设置 → 识图代理**：默认档「DeepSeek 官方识图」零配置（自动复用 `DEEPSEEK_API_KEY` + `api.deepseek.com` 的 `deepseek-flash`），页面上只有模式选择；切到「自定义 VLM 端点」才展开端点 / 模型 / 超时等完整配置。保存写入 profile 的 `cordis.patch.yml`，**后续对话立即生效，无需重启**；密钥字段只显示「已保存」，永不回显到浏览器。
 - **原生识图直通**。选中的模型本身声明了图片输入（如 `deepseek-flash` / `deepseek-v4-flash-vision-exp`）时，图片原样透传、**不再转译**——不浪费一次 VLM 调用，也不损失原生视觉质量。
 - **内层路由自动发现**。配置的 `innerProvider` 没注册时，按 `deepseek-official` → `deepseek-account` → 任一已注册路由的顺序自动挑选：API-key profile 与「DeepSeek 账号登录」profile 都能开箱即用。
 - **绝不卡死**。公网匿名端点强制 20 秒超时上限；匿名端点遇到 HTTP 429 **立即失败**（不做无意义的 Retry-After 等待）；刚失败（429/超时）的端点进入 60 秒冷却并被跳过。**本机/回环端点不受这套匿名策略约束**：冷启动加载几 GB 权重慢是正常的，用满你配置的超时，并发送 `keep_alive` 让 Ollama 模型常驻。
@@ -93,7 +93,7 @@ dsh plugin --profile desktop add dsh-vision-proxy
 2. **设置 → 识图代理** 里改配置（保存后下一轮对话生效，无需重启，密钥不回显）；
 3. 把图片粘贴进任意对话——完事。
 
-> 默认策略：优先用 DeepSeek 官方视觉模型转译（`deepseek-v4-flash-vision-exp`，复用你的 `DEEPSEEK_API_KEY`，无需额外 key）；没有 key 则尝试 `VISION_API_KEY` / `DASHSCOPE_API_KEY` 走百炼；本机装有 Ollama 会自动加入降级链；**选中的模型本身支持图片时直接直通、不转译**。
+> **默认策略（零配置）**：官方 `deepseek-flash` 识图，自动复用你的 `DEEPSEEK_API_KEY` 与 `https://api.deepseek.com`，并在设置页里默认只显示这一档——**不用填任何东西**。需要自己的端点时，在设置页切到「自定义 VLM 端点」（百炼 / 智谱 / OpenRouter / 本机 Ollama），才会展开完整配置项。本机装有 Ollama 会自动加入降级链；**选中的模型本身支持图片时直接直通、不转译**。
 
 **pnpm ≥ 10 默认拦截依赖构建脚本**——首次安装会以非零码退出并提示 `Ignored build scripts: dsh-vision-proxy, sharp`。请批准两者（插件的安装确认提示 + `sharp` 的可选二进制），然后**重跑一次安装**完成 bundle 注册：
 
@@ -170,8 +170,10 @@ dsh plugin --profile desktop add dsh-vision-proxy   # 批准后重跑
 | `marker` | `[图片转译]` | 每条转译文本前加的前缀标记 |
 | `failureMode` | `placeholder` | 全部 VLM 失败时的行为：`placeholder`（默认）插入 `[图片转译失败: 原因]` 文本并继续对话；`error` 则整轮失败 |
 | `abortWithSession` | `false` | 是否让会话层取消中止正在进行的转译。默认关闭：已完成的一次推理不因 dsh 的重发/取消被丢弃 |
-| `deepseekVision` | `true` | 优先用 DeepSeek 官方视觉模型转译（复用 `DEEPSEEK_API_KEY`） |
-| `deepseekVisionModel` | `deepseek-v4-flash-vision-exp` | 官方转译所用模型 |
+| `source` | `deepseek` | 识图来源：`deepseek`（默认，官方 `deepseek-flash` + 你的 `DEEPSEEK_API_KEY` + `api.deepseek.com`，零配置）或 `custom`（自定义端点 / Ollama）。未设置时按配置自动推断，保证旧配置继续可用 |
+| `deepseekVisionModel` | `deepseek-flash` | 官方识图所用模型（`source: deepseek` 时生效） |
+| `deepseekThinking` | `disabled` | 官方识图是否开思考链：默认 `disabled` 直接给答案，省 token 更快；`adaptive` / `enabled` 让模型先思考 |
+| `deepseekVision` | — | 已废弃，旧配置兼容用：`false` 等价于 `source: custom` |
 | `nativeVisionPassThrough` | `true` | 选中的模型原生支持图片时直接透传，不再二次转译 |
 | `autoLocalOllama` | `true` | 启动时探测 `http://localhost:11434`；检测到则加入降级链（**改需重启**） |
 | `localOllamaModel` | `''` | 指定 Ollama 模型 id；留空自动选本地 Ollama 报告的第一个视觉模型 |

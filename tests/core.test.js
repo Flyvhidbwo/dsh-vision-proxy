@@ -74,7 +74,7 @@ test('fallback chain: primary fails, fallback succeeds', async () => {
     });
     const resolved = { baseURL: 'https://primary', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, marker: '[X]' };
     const fallbacks = [{ baseURL: 'https://fallback', model: 'fb', apiKey: 'k', anonymous: false, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
-    const { text } = await transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map());
+    const { text } = await transcribeWithFallback(ctx, resolved, [resolved, ...fallbacks], ref, undefined, new Map());
     assert.equal(text, 'from fallback');
 });
 
@@ -83,7 +83,7 @@ test('fallback chain: all fail → combined classified error (failureMode "error
     const resolved = { baseURL: 'https://a', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'error' };
     const fallbacks = [{ baseURL: 'https://b', model: 'fb', apiKey: 'k', anonymous: false, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
     await assert.rejects(
-        transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map()),
+        transcribeWithFallback(ctx, resolved, [resolved, ...fallbacks], ref, undefined, new Map()),
         (err) => err.message.includes('all 2 vision model(s) failed')
             && err.message.includes('main @ https://a')
             && err.message.includes('fb @ https://b')
@@ -98,7 +98,7 @@ test('fallback chain: keyless main is skipped, anonymous fallback used', async (
     });
     const resolved = { baseURL: 'https://paid', model: 'main', apiKey: '', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0 };
     const fallbacks = [{ baseURL: 'https://free', model: 'Qwen2.5-VL-72B-Instruct', apiKey: '', anonymous: true, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
-    const { text } = await transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map());
+    const { text } = await transcribeWithFallback(ctx, resolved, [resolved, ...fallbacks], ref, undefined, new Map());
     assert.equal(text, 'from free endpoint');
     assert.equal(calls.length, 1); // the keyless main never reached the network
     assert.ok(calls[0].url.includes('free'));
@@ -115,7 +115,7 @@ test('content-hash cache: same bytes, different attachment ids → one request',
     assert.equal(r1.hash, createHash('sha256').update(imgBytes).digest('hex'));
 });
 
-test('Config schema: defaults and fallback entries', () => {
+test('Config schema: defaults, mode-aware fields and fallback entries', () => {
     // Volatile fields are live references; read through them like apply() does.
     const read = (value) => (value !== null && typeof value === 'object' && typeof value.get === 'function' ? value.get() : value);
     const c = plugin.Config({ fallbackModels: [{ model: 'Qwen2.5-VL-72B-Instruct', anonymous: true }] });
@@ -127,17 +127,88 @@ test('Config schema: defaults and fallback entries', () => {
     assert.equal(read(c.nativeVisionPassThrough), true);
     assert.equal(c.autoLocalOllama, true);
     assert.equal(read(c.failureMode), 'placeholder');
+    // Default transcription source: DeepSeek official deepseek-flash, zero config.
+    assert.equal(read(c.source), undefined, 'source stays unset so inference can keep older configs working');
+    assert.equal(read(c.deepseekVisionModel), 'deepseek-flash');
+    assert.equal(c.deepseekThinking, 'disabled');
+    assert.equal(c.deepseekVision, undefined, 'deprecated flag is no longer defaulted');
     assert.equal(c.fallbackModels.length, 1);
     assert.equal(c.fallbackModels[0].baseURL, undefined); // absent keys stay absent
     // The Settings page can only edit volatile fields: the live-editable ones must be refs.
-    for (const key of ['baseURL', 'apiKey', 'model', 'maxTokens', 'timeoutMs', 'maxImagePixels', 'keepAlive', 'marker', 'failureMode', 'deepseekVision', 'deepseekVisionModel', 'autoLocalOllama', 'localOllamaModel', 'nativeVisionPassThrough', 'abortWithSession']) {
-        if (key === 'autoLocalOllama') continue; // restart-only on purpose
+    for (const key of ['source', 'deepseekVisionModel', 'baseURL', 'apiKey', 'model', 'maxTokens', 'timeoutMs', 'maxImagePixels', 'keepAlive', 'marker', 'failureMode', 'localOllamaModel', 'nativeVisionPassThrough', 'abortWithSession']) {
         assert.equal(typeof c[key]?.get, 'function', `${key} must be volatile so Settings can edit it`);
     }
     // Mount-time wiring stays ordinary config.
-    for (const key of ['providerId', 'innerProvider', 'autoLocalOllama', 'fallbackModels']) {
+    for (const key of ['providerId', 'innerProvider', 'autoLocalOllama', 'fallbackModels', 'deepseekThinking', 'deepseekVision']) {
         assert.notEqual(typeof c[key]?.get, 'function', `${key} must stay non-volatile`);
     }
+});
+
+test('transcription source: explicit wins, otherwise inferred from the configured endpoint', () => {
+    const { transcriptionSource, DEFAULT_BASE_URL: DASH, DEFAULT_MODEL: QWEN } = plugin._test;
+    // Keep ambient keys out of the inference under test.
+    const savedVision = process.env.VISION_API_KEY;
+    const savedDash = process.env.DASHSCOPE_API_KEY;
+    delete process.env.VISION_API_KEY;
+    delete process.env.DASHSCOPE_API_KEY;
+    try {
+        // Untouched config → built-in DeepSeek route.
+        assert.equal(transcriptionSource({}), 'deepseek');
+        assert.equal(transcriptionSource({ source: 'deepseek', baseURL: 'https://custom', model: 'x' }), 'deepseek');
+        // Anything custom-looking → custom mode (keeps older configs working).
+        assert.equal(transcriptionSource({ source: 'custom' }), 'custom');
+        assert.equal(transcriptionSource({ apiKey: 'sk-x' }), 'custom');
+        assert.equal(transcriptionSource({ baseURL: 'https://my.endpoint/v1' }), 'custom');
+        assert.equal(transcriptionSource({ model: 'qwen3-vl-flash' }), 'custom');
+        assert.equal(transcriptionSource({ deepseekVision: false }), 'custom');
+        assert.equal(transcriptionSource({ baseURL: DASH, model: QWEN }), 'deepseek');
+        // An exported key (the 0.4/0.5 way of configuring a VLM) implies custom mode.
+        process.env.VISION_API_KEY = 'sk-from-env';
+        assert.equal(transcriptionSource({}), 'custom');
+    } finally {
+        if (savedVision === undefined) delete process.env.VISION_API_KEY;
+        else process.env.VISION_API_KEY = savedVision;
+        if (savedDash === undefined) delete process.env.DASHSCOPE_API_KEY;
+        else process.env.DASHSCOPE_API_KEY = savedDash;
+    }
+});
+
+test('transcription chain: deepseek mode starts with the official deepseek-flash call', () => {
+    const { buildTranscriptionChain } = plugin._test;
+    const resolved = {
+        source: 'deepseek', deepseekVisionModel: 'deepseek-flash', deepseekThinking: 'disabled',
+        baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash', apiKey: 'sk-custom',
+        anonymous: false, maxTokens: 8192, timeoutMs: 120000, maxImagePixels: 4_000_000, keepAlive: '30m',
+    };
+    const fallbacks = [{ model: 'fb', baseURL: 'https://fb', apiKey: 'k', anonymous: false, timeoutMs: 5000, maxTokens: 8192 }];
+    const chain = buildTranscriptionChain(resolved, fallbacks, { baseURL: 'http://localhost:11434/v1', model: 'qwen3-vl:8b' });
+    assert.equal(chain[0].model, 'deepseek-flash');
+    assert.equal(chain[0].baseURL, 'https://api.deepseek.com');
+    assert.equal(chain[0].deepseekKey, true);
+    assert.equal(chain[0].thinking, 'disabled');
+    assert.equal(chain[0].anonymous, false);
+    assert.equal(chain.some((attempt) => attempt.model === 'qwen3.7-flash'), false, 'custom endpoint is not part of deepseek mode');
+    assert.equal(chain[1].model, 'fb', 'user fallbacks follow');
+    assert.equal(chain[2].model, 'qwen3-vl:8b', 'local Ollama comes last');
+    assert.equal(chain.length, 3);
+});
+
+test('transcription chain: custom mode starts with the configured endpoint and still falls back', () => {
+    const { buildTranscriptionChain } = plugin._test;
+    const resolved = {
+        source: 'custom', deepseekVisionModel: 'deepseek-flash', deepseekThinking: 'disabled',
+        baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash', apiKey: 'sk-custom',
+        anonymous: false, maxTokens: 4096, timeoutMs: 30000, maxImagePixels: 0, keepAlive: '30m',
+    };
+    const chain = buildTranscriptionChain(resolved, [], null);
+    assert.equal(chain.length, 1);
+    assert.equal(chain[0].baseURL, 'https://dashscope.aliyuncs.com/compatible-mode/v1');
+    assert.equal(chain[0].model, 'qwen3.7-flash');
+    assert.equal(chain[0].apiKey, 'sk-custom');
+    assert.equal(chain[0].maxTokens, 4096);
+    assert.equal(chain[0].timeoutMs, 30000);
+    assert.equal(chain[0].deepseekKey, undefined);
+    assert.equal(chain.some((attempt) => attempt.baseURL === 'https://api.deepseek.com'), false);
 });
 
 test('anonymous 429 fails fast without retry', async () => {
@@ -155,10 +226,10 @@ test('cooldown: an endpoint that just hit 429 is skipped on the next call', asyn
     const calls = makeFetchMock(async () => res(429, '{"error":"rate limit"}'));
     const resolved = { baseURL: 'https://flaky', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'error' };
     const cooldowns = new Map();
-    await assert.rejects(transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), cooldowns));
+    await assert.rejects(transcribeWithFallback(ctx, resolved, [resolved], ref, undefined, new Map(), cooldowns));
     assert.ok(cooldowns.get('https://flaky') > Date.now()); // cooldown armed
     await assert.rejects(
-        transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), cooldowns),
+        transcribeWithFallback(ctx, resolved, [resolved], ref, undefined, new Map(), cooldowns),
         (err) => err.message.includes('cooling down'),
     );
     assert.equal(calls.length, 1); // second call never reached the network
@@ -171,12 +242,12 @@ test('network failure cools the endpoint down; placeholder mode keeps the sessio
     const cache = new Map();
     const cooldowns = new Map();
     // first turn: network error → placeholder, no throw
-    const r1 = await transcribeWithFallback(ctx, resolved, [], ref, undefined, cache, cooldowns);
+    const r1 = await transcribeWithFallback(ctx, resolved, [resolved], ref, undefined, cache, cooldowns);
     assert.ok(r1.text.includes('[图片转译失败:'), r1.text);
     assert.equal(calls, 1);
     assert.ok(cooldowns.get('https://dead') > Date.now()); // transport failure armed the cooldown
     // second turn (different attachment id, same bytes): failure marker + cooldown → zero network
-    const r2 = await transcribeWithFallback(ctx, resolved, [], { ...ref, attachmentId: 'att-2' }, undefined, cache, cooldowns);
+    const r2 = await transcribeWithFallback(ctx, resolved, [resolved], { ...ref, attachmentId: 'att-2' }, undefined, cache, cooldowns);
     assert.ok(r2.text.includes('[图片转译失败:'), r2.text);
     assert.equal(calls, 1); // the dead endpoint is never hammered again within the cooldown
 });
@@ -186,7 +257,7 @@ test('failureMode "error" still fails the whole turn', async () => {
     globalThis.fetch = async () => { calls += 1; throw new TypeError('fetch failed'); };
     const resolved = { baseURL: 'https://dead', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'error', marker: '[X]' };
     await assert.rejects(
-        transcribeWithFallback(ctx, resolved, [], ref, undefined, new Map(), new Map()),
+        transcribeWithFallback(ctx, resolved, [resolved], ref, undefined, new Map(), new Map()),
         (err) => err.message.includes('all 1 vision model(s) failed'),
     );
     assert.equal(calls, 1);
@@ -471,7 +542,7 @@ test('placeholder reports every attempt, not just the first', async () => {
     makeFetchMock(async () => res(401, '{"error":"bad key"}'));
     const resolved = { baseURL: 'https://a', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'placeholder', marker: '[X]' };
     const fallbacks = [{ baseURL: 'https://b', model: 'fb', apiKey: 'k', anonymous: false, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
-    const { text } = await transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map());
+    const { text } = await transcribeWithFallback(ctx, resolved, [resolved, ...fallbacks], ref, undefined, new Map());
     assert.ok(text.includes('[图片转译失败:'), text);
     assert.ok(text.includes('main @ https://a'), `first attempt present: ${text}`);
     assert.ok(text.includes('fb @ https://b'), `fallback attempt present: ${text}`);
@@ -522,3 +593,4 @@ test('inner route auto-detection: a signed-in profile (deepseek-account) works w
     assert.equal(received.length, 1);
     assert.equal(received[0].provider, 'deepseek-account', 'the registered account route was wrapped');
 });
+
