@@ -211,6 +211,7 @@ dsh --profile desktop --dump-config | grep -A3 dsh-vision-proxy   # 应恰好一
 | 安装时报 `Ignored build scripts: dsh-vision-proxy, sharp` | pnpm ≥ 10 默认拦截依赖构建脚本。在 profile 的 `pnpm-workspace.yaml` 加 `allowBuilds: {dsh-vision-proxy: true, sharp: true}`，然后重跑安装 |
 | 发布当天安装报 `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` | pnpm 11 默认 `minimumReleaseAge` 为 1 天（供应链策略）。在 profile 的 `pnpm-workspace.yaml` 加 `minimumReleaseAge: 0`，或给 `dsh plugin add` 加 `--config.minimum-release-age=0`，然后重跑 |
 | 匿名端点报 `all N vision model(s) failed … rate_limit` | 匿名免费档限速极严且可能挂起。配置 key 或改用本地 Ollama |
+| 同时装了 `@anionex/dsh-vision-toolkit` 时报 `needs no image-input variant` | 两个插件都提供图片输入能力，功能重叠。在本插件路由上关掉 toolkit 的变体：在 profile patch 里给 `vision-toolkit` 行加 `config: { imageInputVariants: { enabled: false } }`，或直接卸载其中一个 |
 | npm 官方源下载慢 | 使用 `--registry=https://registry.npmmirror.com`（参数转发给 pnpm） |
 
 ## 隐私

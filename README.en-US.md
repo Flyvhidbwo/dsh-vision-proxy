@@ -189,6 +189,7 @@ dsh --profile desktop --dump-config | grep -A3 dsh-vision-proxy   # exactly one 
 | `skipped — no API key` even though `VISION_API_KEY` is exported | explorer.exe caches the environment. Put the key in Settings → Vision proxy (or the plugin config) |
 | Local Ollama times out every image (20 s) | 0.4.x wrongly applied the anonymous cap to loopback. **Fixed in 0.5.0** (loopback is local, `keep_alive` is sent) |
 | Local Ollama: `request (N tokens) exceeds the available context size (4096)` | Ollama's default context is too small. Set `OLLAMA_CONTEXT_LENGTH=32768` and restart Ollama |
+| With `@anionex/dsh-vision-toolkit` installed: `needs no image-input variant` | Both plugins provide image input; the features overlap. Disable the toolkit's variant for this route (add `config: { imageInputVariants: { enabled: false } }` to its row in the profile patch) or uninstall one of them |
 | Install warns `Ignored build scripts: dsh-vision-proxy, sharp` | pnpm ≥ 10 blocks build scripts; approve both in the profile's `pnpm-workspace.yaml` (`allowBuilds`) and re-run |
 | `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` right after a release | pnpm 11's `minimumReleaseAge` (1 day). Set `minimumReleaseAge: 0` in the profile's `pnpm-workspace.yaml` or pass `--config.minimum-release-age=0` |
 
