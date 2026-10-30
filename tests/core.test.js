@@ -116,15 +116,28 @@ test('content-hash cache: same bytes, different attachment ids → one request',
 });
 
 test('Config schema: defaults and fallback entries', () => {
+    // Volatile fields are live references; read through them like apply() does.
+    const read = (value) => (value !== null && typeof value === 'object' && typeof value.get === 'function' ? value.get() : value);
     const c = plugin.Config({ fallbackModels: [{ model: 'Qwen2.5-VL-72B-Instruct', anonymous: true }] });
-    assert.equal(c.model, 'qwen3.7-flash');
-    assert.equal(c.maxTokens, 4096);
-    assert.equal(c.timeoutMs, 120000);
-    assert.equal(c.maxImagePixels, 4_000_000);
+    assert.equal(read(c.model), 'qwen3.7-flash');
+    assert.equal(read(c.maxTokens), 8192); // thinking models need room for reasoning + transcription
+    assert.equal(read(c.timeoutMs), 120000);
+    assert.equal(read(c.maxImagePixels), 4_000_000);
+    assert.equal(read(c.keepAlive), '30m');
+    assert.equal(read(c.nativeVisionPassThrough), true);
     assert.equal(c.autoLocalOllama, true);
-    assert.equal(c.failureMode, 'placeholder');
+    assert.equal(read(c.failureMode), 'placeholder');
     assert.equal(c.fallbackModels.length, 1);
     assert.equal(c.fallbackModels[0].baseURL, undefined); // absent keys stay absent
+    // The Settings page can only edit volatile fields: the live-editable ones must be refs.
+    for (const key of ['baseURL', 'apiKey', 'model', 'maxTokens', 'timeoutMs', 'maxImagePixels', 'keepAlive', 'marker', 'failureMode', 'deepseekVision', 'deepseekVisionModel', 'autoLocalOllama', 'localOllamaModel', 'nativeVisionPassThrough', 'abortWithSession']) {
+        if (key === 'autoLocalOllama') continue; // restart-only on purpose
+        assert.equal(typeof c[key]?.get, 'function', `${key} must be volatile so Settings can edit it`);
+    }
+    // Mount-time wiring stays ordinary config.
+    for (const key of ['providerId', 'innerProvider', 'autoLocalOllama', 'fallbackModels']) {
+        assert.notEqual(typeof c[key]?.get, 'function', `${key} must stay non-volatile`);
+    }
 });
 
 test('anonymous 429 fails fast without retry', async () => {
@@ -268,4 +281,244 @@ test('adapter prepareCall contract (dsh >= 0.1.1-rc.2)', async () => {
     assert.equal(imageBlocks.length, 0, 'image block transcribed away before inner');
     assert.ok(sent.some((b) => b.type === 'text' && b.text.includes('图片转译')), 'marker present');
     assert.ok(sent.some((b) => b.type === 'text' && b.text.includes('transcribed via VLM')), 'transcription text present');
+});
+
+// ---------------------------------------------------------------------------
+// dsh 0.2.x compatibility
+// ---------------------------------------------------------------------------
+
+/** A ctx whose `llm.registration()` behaves like dsh 0.2.x: it THROWS NO_ADAPTER. */
+function makeCtx({ attachments, inner }) {
+    const state = { adapter: null, inner };
+    const ctx = {
+        get: (service) => service === 'attachments' ? attachments : undefined,
+        llm: {
+            registration: (provider) => {
+                if (state.inner === null) {
+                    const error = new Error(`no adapter registered for provider "${provider}"`);
+                    error.code = 'NO_ADAPTER';
+                    throw error;
+                }
+                return { provider: { id: provider, name: 'DeepSeek' }, adapter: state.inner };
+            },
+            registerAdapter: (routes, adapter) => { state.adapter = adapter; state.routes = routes; },
+        },
+        logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+    };
+    return { ctx, state };
+}
+
+function makeInner(overrides = {}) {
+    const received = [];
+    const inner = {
+        providerRetryPolicy: () => undefined,
+        listModels: async (provider) => [{ provider, id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }],
+        resolveModel: async (provider, model) => ({
+            provider, id: model, name: model, inputModalities: ['text'],
+            context: { contextWindow: 1_000_000 }, defaultMaxTokens: 4096,
+        }),
+        stream: async function* (options) {
+            received.push(options);
+            yield { type: 'delta', text: 'ok' };
+        },
+        ...overrides,
+    };
+    return { inner, received };
+}
+
+test('lazy inner adapter: apply() succeeds before the wrapped provider registered (dsh 0.2.x)', async () => {
+    makeFetchMock(async (url) => url.includes('/models') ? res(500, 'no ollama') : res(200, okBody('vlm')));
+    const attachments = { readImageRequest: async () => ({ data: imgBytes, mediaType: 'image/png' }) };
+    const { ctx, state } = makeCtx({ attachments, inner: null });
+
+    // The wrapped provider is not there yet: apply() must still register the route.
+    plugin.apply(ctx, { apiKey: 'k' });
+    assert.ok(state.adapter, 'adapter registered even though the inner route is missing');
+
+    // Querying the route while the inner adapter is absent must not throw.
+    assert.equal(state.adapter.providerRetryPolicy('deepseek-vision'), undefined);
+
+    // The wrapped provider activates later.
+    const { inner, received } = makeInner();
+    state.inner = inner;
+
+    const adapterCall = await state.adapter.prepareCall('deepseek-vision', 'deepseek-v4-pro', undefined);
+    assert.equal(adapterCall.model.provider, 'deepseek-vision');
+    const messages = [{ role: 'user', content: [{ type: 'image', attachment: { attachmentId: 'a', mediaType: 'image/png' } }] }];
+    const chunks = [];
+    for await (const chunk of adapterCall.stream({ provider: 'deepseek-vision', model: 'deepseek-v4-pro', messages })) chunks.push(chunk);
+    assert.equal(chunks.length, 1);
+    assert.equal(received.length, 1, 'inner stream dispatched');
+    assert.equal(received[0].provider, 'deepseek-official', 'inner route forwarded, not the proxy route');
+    assert.ok(received[0].messages[0].content.some((b) => b.type === 'text' && b.text.includes('vlm')), 'image transcribed');
+});
+
+test('catalog and exact-model metadata are stamped with the route the caller asked about', async () => {
+    makeFetchMock(async () => res(500, 'no ollama'));
+    const { ctx, state } = makeCtx({ attachments: { readImage: async () => ({ ref: { mediaType: 'image/png' }, data: imgBytes }) }, inner: null });
+    plugin.apply(ctx, { apiKey: 'k' });
+    const { inner } = makeInner();
+    state.inner = inner;
+
+    // The inner adapter stamps its OWN route on every row (as deepseek-official does).
+    const models = await state.adapter.listModels('deepseek-vision');
+    assert.equal(models.length, 1);
+    assert.equal(models[0].provider, 'deepseek-vision', 'row restamped for the proxy route');
+    assert.equal(models[0].id, 'deepseek-v4-pro');
+
+    const info = await state.adapter.resolveModel('deepseek-vision', 'deepseek-v4-pro', undefined);
+    assert.equal(info.provider, 'deepseek-vision');
+    assert.ok(info.inputModalities.includes('image'), 'declares image input');
+});
+
+test('imageTargetFor: aspect-preserving downscale target and safe fallbacks', () => {
+    const { imageTargetFor } = plugin._test;
+    const t = imageTargetFor({ width: 4000, height: 3000, bytes: 900_000 }, 1_000_000);
+    assert.ok(t.width * t.height <= 1_000_000 + 1000, `product ${t.width * t.height} within the pixel budget`);
+    assert.ok(Math.abs((t.width / t.height) - (4000 / 3000)) < 0.01, 'aspect ratio preserved');
+    assert.equal(t.maxBytes, 900_000);
+    // small image keeps its dimensions
+    const same = imageTargetFor({ width: 800, height: 600, bytes: 50_000 }, 4_000_000);
+    assert.deepEqual(same, { width: 800, height: 600, maxBytes: 50_000 });
+    // missing metadata falls back to a square safe target, still honoring the pixel budget
+    const unknown = imageTargetFor({ mediaType: 'image/png' }, 4_000_000);
+    assert.equal(unknown.width, unknown.height, 'unknown intrinsic size uses a square target');
+    assert.ok(unknown.width * unknown.height <= 4_000_000 + 1000);
+    assert.ok(unknown.maxBytes > 0);
+});
+
+test('readImageBytes: prefers the public readImageRequest projection (dsh >= 0.2)', async () => {
+    const targets = [];
+    const attachments = {
+        readImageRequest: async (ref, target) => { targets.push(target); return { data: imgBytes, mediaType: 'image/jpeg' }; },
+        readImage: async () => { throw new Error('legacy readImage must not be used when projection is available'); },
+    };
+    const calls = makeFetchMock(async () => res(200, okBody('from projection')));
+    const config = { baseURL: 'https://p', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 1_000_000, marker: '[X]' };
+    const r = await transcribeImage({ get: () => attachments }, config, { attachmentId: 'a', mediaType: 'image/png', width: 4000, height: 3000, bytes: 900_000 }, undefined, new Map());
+    assert.equal(r.text, 'from projection');
+    assert.equal(calls.length, 1);
+    assert.equal(targets.length, 1);
+    assert.ok(targets[0].width * targets[0].height <= 1_000_000 + 1000);
+});
+
+test('readImageBytes: falls back to readImage when the backend has no request projection', async () => {
+    const attachments = {
+        readImageRequest: async () => { const error = new Error('no projection'); error.code = 'ATTACHMENT_PROJECTION_UNSUPPORTED'; throw error; },
+        readImage: async () => ({ ref: { mediaType: 'image/png' }, data: imgBytes }),
+    };
+    makeFetchMock(async () => res(200, okBody('legacy path')));
+    const config = { baseURL: 'https://p', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, marker: '[X]' };
+    const r = await transcribeImage({ get: () => attachments }, config, ref, undefined, new Map());
+    assert.equal(r.text, 'legacy path');
+});
+
+test('loopback endpoints are not anonymous public tiers: keep_alive sent, no 20 s cap', async () => {
+    const calls = makeFetchMock(async () => res(200, okBody('local ok')));
+    const text = await transcribeRequest(ctx, {
+        baseURL: 'http://localhost:11434/v1', model: 'qwen3-vl:8b', apiKey: '', maxTokens: 10,
+        timeoutMs: 300_000, anonymous: true, keepAlive: '30m',
+    }, 'image/png', imgBytes);
+    assert.equal(text, 'local ok');
+    assert.equal(calls.length, 1);
+    const body = JSON.parse(calls[0].opts.body);
+    assert.equal(body.keep_alive, '30m', 'Ollama keeps the model resident');
+    // a public endpoint must not receive an Ollama-specific field
+    const publicCalls = makeFetchMock(async () => res(200, okBody('remote ok')));
+    await transcribeRequest(ctx, {
+        baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash', apiKey: 'k', maxTokens: 10,
+        timeoutMs: 5000, anonymous: false, keepAlive: '30m',
+    }, 'image/png', imgBytes);
+    const publicBody = JSON.parse(publicCalls[0].opts.body);
+    assert.equal(publicBody.keep_alive, undefined);
+});
+
+test('loopback 429 honors Retry-After instead of failing fast like a public anonymous tier', async () => {
+    const calls = makeFetchMock(async (url, opts, n) => n === 1
+        ? res(429, '{"error":"busy"}', { 'retry-after': '0' })
+        : res(200, okBody('after retry')));
+    const text = await transcribeRequest(ctx, {
+        baseURL: 'http://127.0.0.1:11434/v1', model: 'qwen3-vl:8b', apiKey: '', maxTokens: 10,
+        timeoutMs: 5000, anonymous: true, keepAlive: '30m',
+    }, 'image/png', imgBytes);
+    assert.equal(text, 'after retry');
+    assert.equal(calls.length, 2, 'loopback rate limit is retried, not treated as a hostile free tier');
+});
+
+test('transcription no longer chains the session abort signal by default', async () => {
+    const seen = [];
+    globalThis.fetch = async (url, opts) => {
+        seen.push(opts.signal);
+        return res(200, okBody('decoupled'));
+    };
+    const controller = new AbortController();
+    const config = { baseURL: 'https://x', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, keepAlive: '' };
+    await transcribeRequest(ctx, config, 'image/png', imgBytes, controller.signal);
+    assert.ok(seen[0], 'request is still bounded by its own timeout signal');
+    controller.abort();
+    // the same aborted session signal must not retroactively kill a later turn
+    await transcribeRequest(ctx, config, 'image/png', imgBytes, controller.signal);
+    assert.equal(seen.length, 2);
+});
+
+test('reasoning-only VLM reply is used instead of discarded', async () => {
+    makeFetchMock(async () => res(200, JSON.stringify({ choices: [{ message: { content: '', reasoning: 'the screenshot shows a settings dialog' } }] })));
+    const text = await transcribeRequest(ctx, { baseURL: 'https://r', model: 'm', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, keepAlive: '' }, 'image/png', imgBytes);
+    assert.equal(text, 'the screenshot shows a settings dialog');
+});
+
+test('placeholder reports every attempt, not just the first', async () => {
+    makeFetchMock(async () => res(401, '{"error":"bad key"}'));
+    const resolved = { baseURL: 'https://a', model: 'main', apiKey: 'k', maxTokens: 10, timeoutMs: 5000, anonymous: false, maxImagePixels: 0, failureMode: 'placeholder', marker: '[X]' };
+    const fallbacks = [{ baseURL: 'https://b', model: 'fb', apiKey: 'k', anonymous: false, timeoutMs: 5000, maxTokens: 10, maxImagePixels: 0 }];
+    const { text } = await transcribeWithFallback(ctx, resolved, fallbacks, ref, undefined, new Map());
+    assert.ok(text.includes('[图片转译失败:'), text);
+    assert.ok(text.includes('main @ https://a'), `first attempt present: ${text}`);
+    assert.ok(text.includes('fb @ https://b'), `fallback attempt present: ${text}`);
+});
+
+test('native vision pass-through: a model that already sees images is not transcribed', async () => {    const { inner, received } = makeInner({
+        resolveModel: async (provider, model) => ({
+            provider, id: model, name: model, inputModalities: ['text', 'image'],
+            context: { contextWindow: 1_000_000 }, defaultMaxTokens: 4096,
+        }),
+    });
+    const calls = makeFetchMock(async (url) => url.includes('/models') ? res(500, 'no ollama') : res(200, okBody('should not be called')));
+    const { ctx, state } = makeCtx({ attachments: { readImageRequest: async () => ({ data: imgBytes, mediaType: 'image/png' }) }, inner: null });
+    plugin.apply(ctx, { apiKey: 'k' });
+    state.inner = inner;
+    const adapterCall = await state.adapter.prepareCall('deepseek-vision', 'deepseek-v4-flash-vision-exp', undefined);
+    const messages = [{ role: 'user', content: [{ type: 'image', attachment: { attachmentId: 'a', mediaType: 'image/png' } }] }];
+    for await (const chunk of adapterCall.stream({ provider: 'deepseek-vision', model: 'deepseek-v4-flash-vision-exp', messages })) void chunk;
+    assert.equal(received.length, 1);
+    assert.ok(received[0].messages[0].content.some((b) => b.type === 'image'), 'image passed through untouched');
+    // only the Ollama probe touched the network, no VLM transcription call
+    assert.equal(calls.filter((c) => !c.url.includes('/models')).length, 0);
+});
+
+test('inner route auto-detection: a signed-in profile (deepseek-account) works without reconfiguring', async () => {
+    makeFetchMock(async (url) => url.includes('/models') ? res(500, 'no ollama') : res(200, okBody('vlm')));
+    const { inner, received } = makeInner();
+    const ctx = {
+        get: () => ({ readImageRequest: async () => ({ data: imgBytes, mediaType: 'image/png' }) }),
+        llm: {
+            listProviders: () => [{ id: 'deepseek-account', name: 'DeepSeek 账号' }],
+            registration: (provider) => {
+                if (provider !== 'deepseek-account') {
+                    const error = new Error(`no adapter registered for provider "${provider}"`);
+                    error.code = 'NO_ADAPTER';
+                    throw error;
+                }
+                return { provider: { id: 'deepseek-account', name: 'DeepSeek 账号' }, adapter: inner };
+            },
+            registerAdapter: (routes, adapter) => { ctx._adapter = adapter; },
+        },
+        logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+    };
+    plugin.apply(ctx, {}); // default innerProvider is deepseek-official, which is disabled here
+    const adapterCall = await ctx._adapter.prepareCall('deepseek-vision', 'deepseek-v4-pro', undefined);
+    const messages = [{ role: 'user', content: [{ type: 'image', attachment: { attachmentId: 'a', mediaType: 'image/png' } }] }];
+    for await (const chunk of adapterCall.stream({ provider: 'deepseek-vision', model: 'deepseek-v4-pro', messages })) void chunk;
+    assert.equal(received.length, 1);
+    assert.equal(received[0].provider, 'deepseek-account', 'the registered account route was wrapped');
 });
