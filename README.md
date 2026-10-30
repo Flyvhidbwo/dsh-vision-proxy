@@ -110,6 +110,11 @@ dsh plugin --profile desktop add dsh-vision-proxy   # 批准后重跑
 
 > **npm 官方源太慢？** `dsh plugin --profile desktop add dsh-vision-proxy --registry=https://registry.npmmirror.com`（参数会转发给 pnpm）。
 
+### 备选安装方式（npm 暂时不可用时）
+
+- **从 GitHub 安装**：`dsh plugin --profile desktop add github:Flyvhidbwo/dsh-vision-proxy`；桌面端在「插件 → 添加插件 → Git 仓库」里填 `github:Flyvhidbwo/dsh-vision-proxy`。装到的是仓库默认分支（含最新修复）。
+- **从本地压缩包安装**：先在仓库 Releases 或本机拿到 `.tgz`，桌面端「插件 → 添加插件 → 压缩包」选择该文件即可。
+
 ## 现场演示：真实对话中的识图
 
 一段 `deepseek-vision` 路由上的真实对话（DeepSeek-V4-Flash 作为大脑）：用户粘贴了一张表情包并问 **"你看到了什么"**，图片被 VLM 自动转译，DeepSeek 基于文字完整作答——单步，约 7.6 秒。

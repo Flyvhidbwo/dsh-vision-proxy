@@ -106,6 +106,11 @@ dsh plugin --profile desktop add dsh-vision-proxy   # re-run after approval
 
 > **Slow npm registry?** `dsh plugin --profile desktop add dsh-vision-proxy --registry=https://registry.npmmirror.com` (arguments are forwarded to pnpm).
 
+### Alternative installs (while npm publishing is temporarily unavailable)
+
+- **From GitHub**: `dsh plugin --profile desktop add github:Flyvhidbwo/dsh-vision-proxy`; in the desktop app use **Plugins → Add plugin → Git repository** with `github:Flyvhidbwo/dsh-vision-proxy` (installs the default branch with the latest fixes).
+- **From a local tarball**: grab a `.tgz` from the repository releases (or build one locally) and use **Plugins → Add plugin → Tarball**.
+
 ## Live demo: a real GUI image turn
 
 A real conversation on the `deepseek-vision` route: the user pasted a sticker and asked **"what do you see"**; the VLM transcribed it and DeepSeek answered from the text in a single step (~7.6 s).
