@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vision proxy",
+    "description": "Image-to-text proxy for text-only DeepSeek models: attached images are transcribed and handed to DeepSeek; official vision model, any OpenAI-compatible VLM, or local Ollama. Configure it in Settings → Vision proxy."
+  }
+}

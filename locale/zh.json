@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "识图代理",
+    "description": "为纯文本 DeepSeek 模型补上识图能力：附加的图片自动转译成文字后交给 DeepSeek 作答；支持官方视觉模型、任意 OpenAI 兼容 VLM、本机 Ollama。在「设置 → 识图代理」里配置。"
+  }
+}
